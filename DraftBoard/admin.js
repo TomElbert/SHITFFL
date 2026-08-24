@@ -280,7 +280,12 @@ draftBtn.addEventListener('click', async ()=>{
   draftMsg.textContent='';
   if (!cache.draftState?.draft_started) { draftMsg.textContent = 'Start the draft before entering picks.'; return; }
   if (!selectedPlayer) { draftMsg.textContent = 'Select a player first'; return; }
-  const bid = Math.max(1, Math.floor(Number(bidAmount.value)||0));
+  const bid = Number(bidAmount.value);
+  if (!Number.isInteger(bid) || bid < 1) {
+    draftMsg.textContent = 'Enter a bid amount of at least $1.';
+    bidAmount.focus();
+    return;
+  }
   const teamId = Number(teamSelect.value);
   if (!teamId) { draftMsg.textContent = 'Select a team'; return; }
 
