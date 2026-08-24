@@ -24,8 +24,10 @@ const logList = document.getElementById('log-list');
 const turnStatus = document.getElementById('turn-status');
 const turnOrderList = document.getElementById('turn-order-list');
 const startDraftBtn = document.getElementById('start-draft');
+const syncPlayersBtn = document.getElementById('sync-players');
 const resetDraftBtn = document.getElementById('reset-draft');
 const draftControlMsg = document.getElementById('draft-control-msg');
+const syncMsg = document.getElementById('sync-msg');
 
 let cache = {players:[], teams:[], picks:[], draftState:null};
 let selectedPlayer = null;
@@ -54,6 +56,7 @@ signinBtn.addEventListener('click', signIn);
   if (event.key === 'Enter') signIn();
 }));
 startDraftBtn.addEventListener('click', startDraft);
+syncPlayersBtn.addEventListener('click', syncPlayers);
 resetDraftBtn.addEventListener('click', resetDraft);
 
 async function loadAll(){
@@ -115,6 +118,7 @@ function orderedTeams(){
 function renderTurnControls(){
   const teams = orderedTeams();
   startDraftBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
+  syncPlayersBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
   turnOrderList.innerHTML = '';
   teams.forEach((team, index) => {
     const row = document.createElement('div');
@@ -126,6 +130,69 @@ function renderTurnControls(){
   turnStatus.textContent = current
     ? `${cache.draftState.draft_started ? 'Round '+cache.draftState.round_number+': ' : 'Draft not started. '}${current.manager_name || ('Team '+current.id)} is ${cache.draftState.draft_started ? 'up to nominate a player.' : 'first in the saved order.'}`
     : 'Set and save a team order to begin the nomination turn.';
+}
+
+const BYE_WEEKS = {
+  CAR:5, KC:5, CIN:6, DET:6, MIA:6, MIN:6, BUF:7, JAX:7, LAC:7, WAS:7,
+  HOU:8, NO:8, NYG:8, SF:8, PIT:9, TEN:9, CHI:10, DEN:10, PHI:10, TB:10,
+  ATL:11, CLE:11, GB:11, LAR:11, NE:11, SEA:11, BAL:13, IND:13, LV:13,
+  NYJ:13, ARI:14, DAL:14
+};
+
+async function syncPlayers(){
+  syncMsg.className = 'text-sm mt-2 text-gray-600';
+  syncMsg.textContent = 'Fetching the latest player data...';
+  syncPlayersBtn.disabled = true;
+  try {
+    const response = await fetch('https://api.sleeper.app/v1/players/nfl');
+    if (!response.ok) throw new Error(`Sleeper API returned ${response.status}.`);
+    const allPlayers = await response.json();
+    const draftedResponse = await supabaseClient.from('players').select('id').eq('is_drafted', true);
+    if (draftedResponse.error) throw draftedResponse.error;
+    const draftedIds = new Set((draftedResponse.data || []).map(player => String(player.id)));
+    const fantasyPositions = new Set(['QB', 'RB', 'WR', 'TE', 'K', 'DEF']);
+    const formattedPlayers = [];
+
+    Object.entries(allPlayers).forEach(([playerId, player]) => {
+      let position = player.position;
+      if (!position && (player.fantasy_positions || []).includes('DEF')) position = 'DEF';
+      const isActive = player.active === undefined || player.active === null ? true : player.active;
+      if (!fantasyPositions.has(position) || !isActive) return;
+      const nflTeam = player.team || 'FA';
+      let name = `${player.first_name || ''} ${player.last_name || ''}`.trim();
+      if (position === 'DEF') name = name || nflTeam || String(playerId);
+      if (!name) return;
+      const depthChartOrder = player.depth_chart_order === null || player.depth_chart_order === undefined ? null : Number(player.depth_chart_order);
+      formattedPlayers.push({
+        id:String(playerId), name, position, nfl_team:nflTeam,
+        injury_status:player.injury_status || null, is_drafted:draftedIds.has(String(playerId)),
+        depth_chart_position:player.depth_chart_position || null,
+        depth_chart_order:Number.isFinite(depthChartOrder) ? depthChartOrder : null,
+        status:player.status || null, injury_notes:player.injury_notes || null,
+        injury_start_date:player.injury_start_date || null,
+        espn_id:player.espn_id == null ? null : String(player.espn_id),
+        yahoo_id:player.yahoo_id == null ? null : String(player.yahoo_id),
+        rotowire_id:player.rotowire_id == null ? null : String(player.rotowire_id),
+        bye_week:BYE_WEEKS[nflTeam] || null
+      });
+    });
+
+    for (let index = 0; index < formattedPlayers.length; index += 500) {
+      const batch = formattedPlayers.slice(index, index + 500);
+      const {error} = await supabaseClient.from('players').upsert(batch, {onConflict:'id'});
+      if (error) throw error;
+      syncMsg.textContent = `Synced ${Math.min(index + batch.length, formattedPlayers.length)} of ${formattedPlayers.length} players...`;
+    }
+    syncMsg.className = 'text-sm mt-2 text-green-600';
+    syncMsg.textContent = `Player sync complete. ${formattedPlayers.length} players updated.`;
+    await loadAll();
+  } catch (error) {
+    syncMsg.className = 'text-sm mt-2 text-red-500';
+    syncMsg.textContent = error.message || 'Player sync failed.';
+  } finally {
+    syncPlayersBtn.disabled = false;
+    renderTurnControls();
+  }
 }
 
 async function startDraft(){
