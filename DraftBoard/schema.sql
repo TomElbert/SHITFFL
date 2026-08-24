@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.draft_state (
   current_turn_order INTEGER NOT NULL DEFAULT 1,
   round_number INTEGER NOT NULL DEFAULT 1,
   draft_started BOOLEAN NOT NULL DEFAULT FALSE,
+  round_complete BOOLEAN NOT NULL DEFAULT FALSE,
   nominated_player_id TEXT REFERENCES public.players(id),
   last_winner_player_id TEXT REFERENCES public.players(id),
   last_winner_team_id INTEGER REFERENCES public.teams(id),
@@ -26,6 +27,9 @@ CREATE TABLE IF NOT EXISTS public.draft_state (
 
 ALTER TABLE IF EXISTS public.draft_state
   ADD COLUMN IF NOT EXISTS draft_started BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS round_complete BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE IF EXISTS public.draft_state
   ADD COLUMN IF NOT EXISTS nominated_player_id TEXT REFERENCES public.players(id);

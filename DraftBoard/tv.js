@@ -10,7 +10,9 @@ const els = {
   winner: document.getElementById('winner-player'),
   winnerMeta: document.getElementById('winner-meta'),
   recapRound: document.getElementById('recap-round'),
-  recap: document.getElementById('recap-list')
+  recap: document.getElementById('recap-list'),
+  liveAuction: document.getElementById('live-auction'),
+  liveWinner: document.getElementById('live-winner')
 };
 
 let state = {teams:[], players:{}, picks:[], draftState:null};
@@ -71,8 +73,11 @@ function render(){
   const nominated = findPlayer(state.draftState.nominated_player_id);
   const winner = findPlayer(state.draftState.last_winner_player_id);
   const winnerTeam = state.teams.find(team => Number(team.id) === Number(state.draftState.last_winner_team_id));
+  const roundComplete = Boolean(state.draftState.round_complete);
 
-  els.round.textContent = state.draftState.draft_started ? `Round ${state.draftState.round_number}` : 'Draft not started';
+  els.liveAuction.classList.toggle('hidden', roundComplete);
+  els.liveWinner.classList.toggle('hidden', roundComplete);
+  els.round.textContent = roundComplete ? `Round ${state.draftState.round_number} Complete` : state.draftState.draft_started ? `Round ${state.draftState.round_number}` : 'Draft not started';
   els.nominator.textContent = state.draftState.draft_started && currentTeam ? currentTeam.manager_name || `Team ${currentTeam.id}` : 'Waiting';
   els.nominated.textContent = state.draftState.nominated_player_id ? playerName(nominated, state.draftState.nominated_player_id) : 'Waiting for nomination';
   els.nominatedMeta.textContent = nominated.position ? `${nominated.position} — ${nominated.nfl_team || 'FA'}` : '';
