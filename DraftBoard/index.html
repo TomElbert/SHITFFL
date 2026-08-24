@@ -6,7 +6,7 @@
   <title>DraftBoard Viewer</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="viewer.js?v=6" defer></script>
+  <script src="viewer.js?v=7" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 text-gray-900 p-6">
@@ -17,6 +17,7 @@
 
     <!-- View: League Overview -->
     <section id="league-view" class="space-y-4">
+      <div id="turn-banner" class="bg-blue-50 border border-blue-200 p-4 rounded"></div>
       <div class="bg-white p-4 rounded shadow">
         <h2 class="text-lg font-semibold">League Overview</h2>
         <div id="teams-list" class="mt-4 grid gap-3"></div>

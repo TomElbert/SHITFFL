@@ -18,6 +18,7 @@ const REQUIRED_SLOTS = {
 const els = {
   leagueView: document.getElementById('league-view'),
   teamsList: document.getElementById('teams-list'),
+  turnBanner: document.getElementById('turn-banner'),
   teamView: document.getElementById('team-view'),
   backBtn: document.getElementById('back-btn'),
   teamTitle: document.getElementById('team-title'),
@@ -29,7 +30,8 @@ const els = {
 let state = {
   teams: [],
   players: {}, // map id -> player
-  picks: []
+  picks: [],
+  draftState: {current_turn_order: 1, round_number: 1}
 };
 
 async function init() {
@@ -39,16 +41,18 @@ async function init() {
 }
 
 async function loadAll() {
-  const [tRes, pRes, dRes] = await Promise.all([
+  const [tRes, pRes, dRes, sRes] = await Promise.all([
     supabaseClient.from('teams').select('*'),
     supabaseClient.from('players').select('*'),
-    supabaseClient.from('draft_picks').select('*')
+    supabaseClient.from('draft_picks').select('*'),
+    supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
   ]);
 
   state.teams = (tRes.data || []).slice();
   state.players = {};
   (pRes.data || []).forEach(p => state.players[p.id] = p);
   state.picks = (dRes.data || []).slice();
+  state.draftState = sRes.data || state.draftState;
   await loadPlayersForPicks(state.picks);
   renderLeague();
 }
@@ -77,6 +81,12 @@ function subscribeRealtime() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'players'}, payload => {
       loadPlayersOnly();
     })
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'teams'}, payload => {
+      loadTeamsOnly();
+    })
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'draft_state'}, payload => {
+      loadDraftStateOnly();
+    })
     .subscribe();
 }
 
@@ -102,19 +112,36 @@ async function loadPlayersOnly(){
   }
 }
 
+async function loadTeamsOnly(){
+  const {data} = await supabaseClient.from('teams').select('*');
+  state.teams = data || [];
+  renderLeague();
+}
+
+async function loadDraftStateOnly(){
+  const {data} = await supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle();
+  if (data) state.draftState = data;
+  renderLeague();
+}
+
 function renderLeague() {
   els.teamsList.innerHTML = '';
-  state.teams.forEach(team => {
+  const orderedTeams = [...state.teams].sort((a, b) => (a.turn_order || Number.MAX_SAFE_INTEGER) - (b.turn_order || Number.MAX_SAFE_INTEGER) || a.id - b.id);
+  const currentTeam = orderedTeams.find(team => Number(team.turn_order) === Number(state.draftState.current_turn_order));
+  els.turnBanner.textContent = currentTeam
+    ? `Round ${state.draftState.round_number}: ${currentTeam.manager_name || ('Team '+currentTeam.id)} is up next to nominate a player.`
+    : 'Nomination order has not been set yet.';
+  orderedTeams.forEach(team => {
     const teamPicks = state.picks.filter(dp => dp.team_id === team.id);
     const spent = teamPicks.reduce((s, x) => s + (x.cost||0), 0);
     const rosterCount = teamPicks.length;
     const remaining = STARTING_BUDGET - spent;
 
     const div = document.createElement('div');
-    div.className = 'p-3 bg-gray-50 rounded border flex justify-between items-center';
+    div.className = `p-3 bg-gray-50 rounded border flex justify-between items-center ${team.id === currentTeam?.id ? 'border-blue-500 ring-2 ring-blue-100' : ''}`;
     div.innerHTML = `
       <div>
-        <div class="font-semibold">${escapeHtml(team.manager_name || 'Team '+team.id)}</div>
+        <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
         <div class="text-sm text-gray-500">Roster: ${rosterCount} — Remaining: $${remaining}</div>
       </div>
       <div>

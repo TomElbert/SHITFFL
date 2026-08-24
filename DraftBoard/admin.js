@@ -21,8 +21,13 @@ const teamSelect = document.getElementById('team-select');
 const draftBtn = document.getElementById('draft-btn');
 const draftMsg = document.getElementById('draft-msg');
 const logList = document.getElementById('log-list');
+const turnStatus = document.getElementById('turn-status');
+const turnOrderList = document.getElementById('turn-order-list');
+const saveTurnOrderBtn = document.getElementById('save-turn-order');
+const advanceTurnBtn = document.getElementById('advance-turn');
+const turnMsg = document.getElementById('turn-msg');
 
-let cache = {players:[], teams:[], picks:[]};
+let cache = {players:[], teams:[], picks:[], draftState:null};
 let selectedPlayer = null;
 
 async function signIn() {
@@ -48,18 +53,23 @@ signinBtn.addEventListener('click', signIn);
 [emailEl, passEl].forEach(input => input.addEventListener('keydown', event => {
   if (event.key === 'Enter') signIn();
 }));
+saveTurnOrderBtn.addEventListener('click', saveTurnOrder);
+advanceTurnBtn.addEventListener('click', advanceTurn);
 
 async function loadAll(){
-  const [players,tRes,dRes] = await Promise.all([
+  const [players,tRes,dRes,sRes] = await Promise.all([
     loadAllPlayers(),
     supabaseClient.from('teams').select('*'),
-    supabaseClient.from('draft_picks').select('*')
+    supabaseClient.from('draft_picks').select('*'),
+    supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
   ]);
   cache.players = players;
   cache.teams = tRes.data || [];
   cache.picks = (dRes.data || []).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+  cache.draftState = sRes.data || {current_turn_order:1, round_number:1};
   await loadPlayersForPicks(cache.picks);
   renderTeams();
+  renderTurnControls();
   renderLog();
 }
 
@@ -92,6 +102,66 @@ async function loadPlayersForPicks(picks){
   const playersById = new Map(cache.players.map(player => [String(player.id), player]));
   (data || []).forEach(player => playersById.set(String(player.id), player));
   cache.players = [...playersById.values()];
+}
+
+function orderedTeams(){
+  return [...cache.teams].sort((a, b) => {
+    const aOrder = Number.isInteger(a.turn_order) ? a.turn_order : Number.MAX_SAFE_INTEGER;
+    const bOrder = Number.isInteger(b.turn_order) ? b.turn_order : Number.MAX_SAFE_INTEGER;
+    return aOrder - bOrder || Number(a.id) - Number(b.id);
+  });
+}
+
+function renderTurnControls(){
+  const teams = orderedTeams();
+  turnOrderList.innerHTML = '';
+  teams.forEach((team, index) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `<input data-team-id="${team.id}" type="number" min="1" class="turn-order-input w-20 p-2 border rounded" value="${team.turn_order || index + 1}" /><span>${escapeHtml(team.manager_name || ('Team '+team.id))}</span>`;
+    turnOrderList.appendChild(row);
+  });
+  const current = teams.find(team => team.turn_order === cache.draftState.current_turn_order);
+  turnStatus.textContent = current
+    ? `Round ${cache.draftState.round_number}: ${current.manager_name || ('Team '+current.id)} is up to nominate a player.`
+    : 'Set and save a team order to begin the nomination turn.';
+}
+
+async function saveTurnOrder(){
+  turnMsg.textContent = '';
+  const entries = [...document.querySelectorAll('.turn-order-input')].map(input => ({
+    id: Number(input.dataset.teamId),
+    order: Number(input.value)
+  }));
+  const orders = entries.map(entry => entry.order);
+  if (entries.some(entry => !Number.isInteger(entry.order) || entry.order < 1) || new Set(orders).size !== orders.length) {
+    turnMsg.textContent = 'Each team needs a unique positive turn number.';
+    return;
+  }
+  const results = await Promise.all(entries.map(entry =>
+    supabaseClient.from('teams').update({turn_order: entry.order}).eq('id', entry.id)
+  ));
+  const error = results.find(result => result.error)?.error;
+  if (error) { turnMsg.textContent = error.message; return; }
+  await loadAll();
+}
+
+async function advanceTurn(){
+  turnMsg.textContent = '';
+  const teams = orderedTeams();
+  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+    turnMsg.textContent = 'Save a complete team order before advancing.';
+    return;
+  }
+  const currentIndex = teams.findIndex(team => team.turn_order === cache.draftState.current_turn_order);
+  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % teams.length;
+  const wrapped = currentIndex >= 0 && nextIndex === 0;
+  const {error} = await supabaseClient.from('draft_state').update({
+    current_turn_order: teams[nextIndex].turn_order,
+    round_number: cache.draftState.round_number + (wrapped ? 1 : 0)
+  }).eq('id', 1);
+  if (error) { turnMsg.textContent = error.message; return; }
+  await loadAll();
 }
 
 function renderTeams(){
@@ -287,4 +357,4 @@ function findPlayer(playerId){
 }
 
 // initial load of teams & players for search
-(async ()=>{ try{ const [players,tRes,dRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*') ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); await loadPlayersForPicks(cache.picks); renderTeams(); renderLog(); }catch(e){ console.error(e);} })();
+(async ()=>{ try{ const [players,tRes,dRes,sRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*'), supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle() ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); cache.draftState = sRes.data || {current_turn_order:1, round_number:1}; await loadPlayersForPicks(cache.picks); renderTeams(); renderTurnControls(); renderLog(); }catch(e){ console.error(e);} })();
