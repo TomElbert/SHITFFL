@@ -291,7 +291,12 @@ async function selectPlayer(p){
   selectedPlayer = p;
   playerSearch.value = playerName(p);
   playerResults.innerHTML = `<div class="p-2 text-sm">Selected: ${escapeHtml(playerSearch.value)} ${p.injury_status?'<span class="text-red-600">INJ</span>':''}</div>`;
-  const {error} = await supabaseClient.from('draft_state').update({nominated_player_id:p.id}).eq('id',1);
+  const {error} = await supabaseClient.from('draft_state').update({
+    nominated_player_id:p.id,
+    last_winner_player_id:null,
+    last_winner_team_id:null,
+    last_winning_cost:null
+  }).eq('id',1);
   if (error) draftMsg.textContent = `Player selected locally, but TV state could not update: ${error.message}`;
 }
 
@@ -329,6 +334,7 @@ draftBtn.addEventListener('click', async ()=>{
   if (updErr) { draftMsg.textContent = 'Drafted but failed to mark player: '+updErr.message; return; }
 
   const {error:stateError} = await supabaseClient.from('draft_state').update({
+    nominated_player_id:null,
     last_winner_player_id:selectedPlayer.id,
     last_winner_team_id:teamId,
     last_winning_cost:bid

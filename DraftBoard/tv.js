@@ -29,7 +29,11 @@ async function loadAll(){
   (playersResult.data || []).forEach(player => state.players[String(player.id)] = player);
   state.picks = picksResult.data || [];
   state.draftState = stateResult.data || {current_turn_order:1, round_number:1, draft_started:false};
-  await loadPlayersForPicks(state.picks);
+  await loadPlayersForPicks([
+    ...state.picks,
+    {player_id: state.draftState.nominated_player_id},
+    {player_id: state.draftState.last_winner_player_id}
+  ]);
   render();
 }
 
