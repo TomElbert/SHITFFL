@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DraftBoard Viewer</title>
+  <link rel="icon" href="data:," />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="viewer.js?v=6" defer></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-900 p-6">
+  <div id="app" class="max-w-5xl mx-auto">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold">Fantasy Auction Draft — Viewer</h1>
+    </header>
+
+    <!-- View: League Overview -->
+    <section id="league-view" class="space-y-4">
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="text-lg font-semibold">League Overview</h2>
+        <div id="teams-list" class="mt-4 grid gap-3"></div>
+      </div>
+    </section>
+
+    <!-- View: Team Detail -->
+    <section id="team-view" class="hidden bg-white p-4 rounded shadow">
+      <button id="back-btn" class="mb-4 text-sm text-blue-600">&larr; Back to League</button>
+      <h2 id="team-title" class="text-xl font-semibold"></h2>
+      <p id="team-meta" class="text-sm text-gray-600"></p>
+      <div id="required-checklist" class="mt-4 grid grid-cols-2 gap-2"></div>
+      <h3 class="mt-4 font-semibold">Roster</h3>
+      <div id="roster-list" class="mt-2"></div>
+    </section>
+  </div>
+</body>
+</html>
