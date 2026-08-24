@@ -25,6 +25,7 @@ const turnStatus = document.getElementById('turn-status');
 const turnOrderList = document.getElementById('turn-order-list');
 const startDraftBtn = document.getElementById('start-draft');
 const syncPlayersBtn = document.getElementById('sync-players');
+const nextRoundBtn = document.getElementById('next-round');
 const resetDraftBtn = document.getElementById('reset-draft');
 const draftControlMsg = document.getElementById('draft-control-msg');
 const syncMsg = document.getElementById('sync-msg');
@@ -58,6 +59,7 @@ signinBtn.addEventListener('click', signIn);
 startDraftBtn.addEventListener('click', startDraft);
 syncPlayersBtn.addEventListener('click', syncPlayers);
 resetDraftBtn.addEventListener('click', resetDraft);
+nextRoundBtn.addEventListener('click', proceedToNextRound);
 
 async function loadAll(){
   const [players,tRes,dRes,sRes] = await Promise.all([
@@ -69,7 +71,7 @@ async function loadAll(){
   cache.players = players;
   cache.teams = tRes.data || [];
   cache.picks = (dRes.data || []).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
-  cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false};
+  cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null};
   await loadPlayersForPicks(cache.picks);
   renderTeams();
   renderTurnControls();
@@ -119,6 +121,7 @@ function renderTurnControls(){
   const teams = orderedTeams();
   startDraftBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
   syncPlayersBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
+  nextRoundBtn.classList.toggle('hidden', !Boolean(cache.draftState?.draft_started));
   turnOrderList.innerHTML = '';
   teams.forEach((team, index) => {
     const row = document.createElement('div');
@@ -202,7 +205,7 @@ async function startDraft(){
     draftControlMsg.textContent = 'Set a complete team order on the Manager Team Setup page first.';
     return;
   }
-  const {error} = await supabaseClient.from('draft_state').update({draft_started:true, current_turn_order:teams[0].turn_order, round_number:1}).eq('id',1);
+  const {error} = await supabaseClient.from('draft_state').update({draft_started:true, current_turn_order:teams[0].turn_order, round_number:1, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null}).eq('id',1);
   if (error) { draftControlMsg.textContent = error.message; return; }
   await loadAll();
 }
@@ -218,9 +221,24 @@ async function resetDraft(){
   if (pickError) { draftControlMsg.textContent = pickError.message; return; }
   const {error:playerError} = await supabaseClient.from('players').update({is_drafted:false}).neq('id', '');
   if (playerError) { draftControlMsg.textContent = playerError.message; return; }
-  const {error:stateError} = await supabaseClient.from('draft_state').update({draft_started:false, current_turn_order:1, round_number:1}).eq('id',1);
+  const {error:stateError} = await supabaseClient.from('draft_state').update({draft_started:false, current_turn_order:1, round_number:1, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null}).eq('id',1);
   if (stateError) { draftControlMsg.textContent = stateError.message; return; }
   draftControlMsg.textContent = 'Draft reset successfully.';
+  await loadAll();
+}
+
+async function proceedToNextRound(){
+  const teams = orderedTeams();
+  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+    draftControlMsg.textContent = 'Set a complete team order before starting another round.';
+    return;
+  }
+  const {error} = await supabaseClient.from('draft_state').update({
+    current_turn_order:teams[0].turn_order,
+    round_number:cache.draftState.round_number + 1,
+    nominated_player_id:null
+  }).eq('id',1);
+  if (error) { draftControlMsg.textContent = error.message; return; }
   await loadAll();
 }
 
@@ -269,10 +287,12 @@ playerSearch.addEventListener('input', ()=>{
   });
 });
 
-function selectPlayer(p){
+async function selectPlayer(p){
   selectedPlayer = p;
   playerSearch.value = playerName(p);
   playerResults.innerHTML = `<div class="p-2 text-sm">Selected: ${escapeHtml(playerSearch.value)} ${p.injury_status?'<span class="text-red-600">INJ</span>':''}</div>`;
+  const {error} = await supabaseClient.from('draft_state').update({nominated_player_id:p.id}).eq('id',1);
+  if (error) draftMsg.textContent = `Player selected locally, but TV state could not update: ${error.message}`;
 }
 
 // Draft button logic with validations
@@ -303,10 +323,17 @@ draftBtn.addEventListener('click', async ()=>{
   if (bid > maxAllowable) { draftMsg.textContent = `Bid too high. Max allowable: $${maxAllowable}`; return; }
 
   // OK: insert draft_picks and update player
-  const {error:insErr} = await supabaseClient.from('draft_picks').insert([{player_id: selectedPlayer.id, team_id: teamId, cost: bid}]);
+  const {error:insErr} = await supabaseClient.from('draft_picks').insert([{player_id: selectedPlayer.id, team_id: teamId, cost: bid, round_number:cache.draftState.round_number}]);
   if (insErr) { draftMsg.textContent = insErr.message; return; }
   const {error:updErr} = await supabaseClient.from('players').update({is_drafted:true}).eq('id', selectedPlayer.id);
   if (updErr) { draftMsg.textContent = 'Drafted but failed to mark player: '+updErr.message; return; }
+
+  const {error:stateError} = await supabaseClient.from('draft_state').update({
+    last_winner_player_id:selectedPlayer.id,
+    last_winner_team_id:teamId,
+    last_winning_cost:bid
+  }).eq('id',1);
+  if (stateError) { draftMsg.textContent = `Draft saved, but TV winner state could not update: ${stateError.message}`; return; }
 
   await advanceTurn();
   draftMsg.textContent = 'Draft successful';

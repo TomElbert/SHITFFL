@@ -17,11 +17,27 @@ CREATE TABLE IF NOT EXISTS public.draft_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   current_turn_order INTEGER NOT NULL DEFAULT 1,
   round_number INTEGER NOT NULL DEFAULT 1,
-  draft_started BOOLEAN NOT NULL DEFAULT FALSE
+  draft_started BOOLEAN NOT NULL DEFAULT FALSE,
+  nominated_player_id TEXT REFERENCES public.players(id),
+  last_winner_player_id TEXT REFERENCES public.players(id),
+  last_winner_team_id INTEGER REFERENCES public.teams(id),
+  last_winning_cost INTEGER
 );
 
 ALTER TABLE IF EXISTS public.draft_state
   ADD COLUMN IF NOT EXISTS draft_started BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS nominated_player_id TEXT REFERENCES public.players(id);
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS last_winner_player_id TEXT REFERENCES public.players(id);
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS last_winner_team_id INTEGER REFERENCES public.teams(id);
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS last_winning_cost INTEGER;
 
 INSERT INTO public.draft_state (id)
 VALUES (1)
@@ -33,8 +49,12 @@ CREATE TABLE IF NOT EXISTS public.draft_picks (
   player_id TEXT REFERENCES public.players(id),
   team_id INTEGER REFERENCES public.teams(id),
   cost INTEGER NOT NULL,
+  round_number INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
+
+ALTER TABLE IF EXISTS public.draft_picks
+  ADD COLUMN IF NOT EXISTS round_number INTEGER;
 
 -- Add this to an existing players table so the Viewer can show NFL bye weeks.
 ALTER TABLE IF EXISTS public.players
