@@ -114,6 +114,7 @@ function orderedTeams(){
 
 function renderTurnControls(){
   const teams = orderedTeams();
+  startDraftBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
   turnOrderList.innerHTML = '';
   teams.forEach((team, index) => {
     const row = document.createElement('div');
