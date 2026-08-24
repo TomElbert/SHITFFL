@@ -14,8 +14,10 @@ const els = {
 };
 
 let state = {teams:[], players:{}, picks:[], draftState:null};
+let latestLoadVersion = 0;
 
 async function loadAll(){
+  const loadVersion = ++latestLoadVersion;
   const [teamsResult, playersResult, picksResult, stateResult] = await Promise.all([
     supabaseClient.from('teams').select('*'),
     supabaseClient.from('players').select('*'),
@@ -24,6 +26,7 @@ async function loadAll(){
   ]);
   const errors = [teamsResult, playersResult, picksResult, stateResult].filter(result => result.error);
   if (errors.length) throw errors[0].error;
+  if (loadVersion !== latestLoadVersion) return;
   state.teams = teamsResult.data || [];
   state.players = {};
   (playersResult.data || []).forEach(player => state.players[String(player.id)] = player);
@@ -34,6 +37,7 @@ async function loadAll(){
     {player_id: state.draftState.nominated_player_id},
     {player_id: state.draftState.last_winner_player_id}
   ]);
+  if (loadVersion !== latestLoadVersion) return;
   render();
 }
 
