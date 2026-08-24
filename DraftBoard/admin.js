@@ -249,12 +249,16 @@ async function proceedToNextRound(){
 
 async function advanceTurn(){
   const teams = orderedTeams();
-  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+  if (!teams.length || teams.some(team => !Number.isInteger(Number(team.turn_order)))) {
     draftMsg.textContent = 'Set a complete team order on the Manager Team Setup page before drafting.';
     return;
   }
-  const currentIndex = teams.findIndex(team => team.turn_order === cache.draftState.current_turn_order);
-  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % teams.length;
+  const currentIndex = teams.findIndex(team => Number(team.turn_order) === Number(cache.draftState.current_turn_order));
+  if (currentIndex < 0) {
+    draftMsg.textContent = 'The current nomination turn does not match the saved team order.';
+    return;
+  }
+  const nextIndex = (currentIndex + 1) % teams.length;
   const isLastTeam = currentIndex === teams.length - 1;
   if (isLastTeam) {
     const {error} = await supabaseClient.from('draft_state').update({round_complete:true, nominated_player_id:null}).eq('id',1);
