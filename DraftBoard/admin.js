@@ -23,9 +23,9 @@ const draftMsg = document.getElementById('draft-msg');
 const logList = document.getElementById('log-list');
 const turnStatus = document.getElementById('turn-status');
 const turnOrderList = document.getElementById('turn-order-list');
-const saveTurnOrderBtn = document.getElementById('save-turn-order');
-const advanceTurnBtn = document.getElementById('advance-turn');
-const turnMsg = document.getElementById('turn-msg');
+const startDraftBtn = document.getElementById('start-draft');
+const resetDraftBtn = document.getElementById('reset-draft');
+const draftControlMsg = document.getElementById('draft-control-msg');
 
 let cache = {players:[], teams:[], picks:[], draftState:null};
 let selectedPlayer = null;
@@ -53,8 +53,8 @@ signinBtn.addEventListener('click', signIn);
 [emailEl, passEl].forEach(input => input.addEventListener('keydown', event => {
   if (event.key === 'Enter') signIn();
 }));
-saveTurnOrderBtn.addEventListener('click', saveTurnOrder);
-advanceTurnBtn.addEventListener('click', advanceTurn);
+startDraftBtn.addEventListener('click', startDraft);
+resetDraftBtn.addEventListener('click', resetDraft);
 
 async function loadAll(){
   const [players,tRes,dRes,sRes] = await Promise.all([
@@ -66,7 +66,7 @@ async function loadAll(){
   cache.players = players;
   cache.teams = tRes.data || [];
   cache.picks = (dRes.data || []).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
-  cache.draftState = sRes.data || {current_turn_order:1, round_number:1};
+  cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false};
   await loadPlayersForPicks(cache.picks);
   renderTeams();
   renderTurnControls();
@@ -118,39 +118,48 @@ function renderTurnControls(){
   teams.forEach((team, index) => {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2';
-    row.innerHTML = `<input data-team-id="${team.id}" type="number" min="1" class="turn-order-input w-20 p-2 border rounded" value="${team.turn_order || index + 1}" /><span>${escapeHtml(team.manager_name || ('Team '+team.id))}</span>`;
+    row.innerHTML = `<span class="w-8 font-semibold">${team.turn_order || index + 1}.</span><span>${escapeHtml(team.manager_name || ('Team '+team.id))}</span>`;
     turnOrderList.appendChild(row);
   });
-  const current = teams.find(team => team.turn_order === cache.draftState.current_turn_order);
+  const current = teams.find(team => Number(team.turn_order) === Number(cache.draftState.current_turn_order));
   turnStatus.textContent = current
-    ? `Round ${cache.draftState.round_number}: ${current.manager_name || ('Team '+current.id)} is up to nominate a player.`
+    ? `${cache.draftState.draft_started ? 'Round '+cache.draftState.round_number+': ' : 'Draft not started. '}${current.manager_name || ('Team '+current.id)} is ${cache.draftState.draft_started ? 'up to nominate a player.' : 'first in the saved order.'}`
     : 'Set and save a team order to begin the nomination turn.';
 }
 
-async function saveTurnOrder(){
-  turnMsg.textContent = '';
-  const entries = [...document.querySelectorAll('.turn-order-input')].map(input => ({
-    id: Number(input.dataset.teamId),
-    order: Number(input.value)
-  }));
-  const orders = entries.map(entry => entry.order);
-  if (entries.some(entry => !Number.isInteger(entry.order) || entry.order < 1) || new Set(orders).size !== orders.length) {
-    turnMsg.textContent = 'Each team needs a unique positive turn number.';
+async function startDraft(){
+  draftControlMsg.textContent = '';
+  const teams = orderedTeams();
+  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+    draftControlMsg.textContent = 'Set a complete team order on the Manager Team Setup page first.';
     return;
   }
-  const results = await Promise.all(entries.map(entry =>
-    supabaseClient.from('teams').update({turn_order: entry.order}).eq('id', entry.id)
-  ));
-  const error = results.find(result => result.error)?.error;
-  if (error) { turnMsg.textContent = error.message; return; }
+  const {error} = await supabaseClient.from('draft_state').update({draft_started:true, current_turn_order:teams[0].turn_order, round_number:1}).eq('id',1);
+  if (error) { draftControlMsg.textContent = error.message; return; }
+  await loadAll();
+}
+
+async function resetDraft(){
+  const confirmation = window.prompt("This deletes every pick and resets every player. Type exactly: I know this will reset");
+  if (confirmation !== 'I know this will reset') {
+    draftControlMsg.textContent = 'Reset cancelled. The confirmation text did not match.';
+    return;
+  }
+  draftControlMsg.textContent = '';
+  const {error:pickError} = await supabaseClient.from('draft_picks').delete().neq('id', 0);
+  if (pickError) { draftControlMsg.textContent = pickError.message; return; }
+  const {error:playerError} = await supabaseClient.from('players').update({is_drafted:false}).neq('id', '');
+  if (playerError) { draftControlMsg.textContent = playerError.message; return; }
+  const {error:stateError} = await supabaseClient.from('draft_state').update({draft_started:false, current_turn_order:1, round_number:1}).eq('id',1);
+  if (stateError) { draftControlMsg.textContent = stateError.message; return; }
+  draftControlMsg.textContent = 'Draft reset successfully.';
   await loadAll();
 }
 
 async function advanceTurn(){
-  turnMsg.textContent = '';
   const teams = orderedTeams();
   if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
-    turnMsg.textContent = 'Save a complete team order before advancing.';
+    draftMsg.textContent = 'Set a complete team order on the Manager Team Setup page before drafting.';
     return;
   }
   const currentIndex = teams.findIndex(team => team.turn_order === cache.draftState.current_turn_order);
@@ -160,7 +169,7 @@ async function advanceTurn(){
     current_turn_order: teams[nextIndex].turn_order,
     round_number: cache.draftState.round_number + (wrapped ? 1 : 0)
   }).eq('id', 1);
-  if (error) { turnMsg.textContent = error.message; return; }
+  if (error) { draftMsg.textContent = error.message; return; }
   await loadAll();
 }
 
@@ -201,6 +210,7 @@ function selectPlayer(p){
 // Draft button logic with validations
 draftBtn.addEventListener('click', async ()=>{
   draftMsg.textContent='';
+  if (!cache.draftState?.draft_started) { draftMsg.textContent = 'Start the draft before entering picks.'; return; }
   if (!selectedPlayer) { draftMsg.textContent = 'Select a player first'; return; }
   const bid = Math.max(1, Math.floor(Number(bidAmount.value)||0));
   const teamId = Number(teamSelect.value);
@@ -223,11 +233,10 @@ draftBtn.addEventListener('click', async ()=>{
   const {error:insErr} = await supabaseClient.from('draft_picks').insert([{player_id: selectedPlayer.id, team_id: teamId, cost: bid}]);
   if (insErr) { draftMsg.textContent = insErr.message; return; }
   const {error:updErr} = await supabaseClient.from('players').update({is_drafted:true}).eq('id', selectedPlayer.id);
-  if (updErr) { draftMsg.textContent = 'Drafted but failed to mark player: '+updErr.message; }
+  if (updErr) { draftMsg.textContent = 'Drafted but failed to mark player: '+updErr.message; return; }
 
+  await advanceTurn();
   draftMsg.textContent = 'Draft successful';
-  // refresh
-  await loadAll();
   // reset selection
   selectedPlayer = null; playerSearch.value=''; bidAmount.value=''; playerResults.innerHTML='';
 });
@@ -357,4 +366,4 @@ function findPlayer(playerId){
 }
 
 // initial load of teams & players for search
-(async ()=>{ try{ const [players,tRes,dRes,sRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*'), supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle() ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); cache.draftState = sRes.data || {current_turn_order:1, round_number:1}; await loadPlayersForPicks(cache.picks); renderTeams(); renderTurnControls(); renderLog(); }catch(e){ console.error(e);} })();
+(async ()=>{ try{ const [players,tRes,dRes,sRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*'), supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle() ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false}; await loadPlayersForPicks(cache.picks); renderTeams(); renderTurnControls(); renderLog(); }catch(e){ console.error(e);} })();

@@ -16,8 +16,12 @@ ALTER TABLE IF EXISTS public.teams
 CREATE TABLE IF NOT EXISTS public.draft_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   current_turn_order INTEGER NOT NULL DEFAULT 1,
-  round_number INTEGER NOT NULL DEFAULT 1
+  round_number INTEGER NOT NULL DEFAULT 1,
+  draft_started BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE IF EXISTS public.draft_state
+  ADD COLUMN IF NOT EXISTS draft_started BOOLEAN NOT NULL DEFAULT FALSE;
 
 INSERT INTO public.draft_state (id)
 VALUES (1)
@@ -43,56 +47,78 @@ ALTER TABLE IF EXISTS public.players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.draft_state ENABLE ROW LEVEL SECURITY;
 
 -- Public read access for all tables
+DROP POLICY IF EXISTS teams_public_select ON public.teams;
 CREATE POLICY teams_public_select ON public.teams
   FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS draft_picks_public_select ON public.draft_picks;
 CREATE POLICY draft_picks_public_select ON public.draft_picks
   FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS players_public_select ON public.players;
 CREATE POLICY players_public_select ON public.players
   FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS draft_state_public_select ON public.draft_state;
 CREATE POLICY draft_state_public_select ON public.draft_state
   FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS teams_authenticated_update ON public.teams;
 CREATE POLICY teams_authenticated_update ON public.teams
   FOR UPDATE
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS teams_authenticated_insert ON public.teams;
+CREATE POLICY teams_authenticated_insert ON public.teams
+  FOR INSERT
+  WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS teams_authenticated_delete ON public.teams;
+CREATE POLICY teams_authenticated_delete ON public.teams
+  FOR DELETE
+  USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS draft_state_authenticated_update ON public.draft_state;
 CREATE POLICY draft_state_authenticated_update ON public.draft_state
   FOR UPDATE
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
 -- Authenticated modify access for draft_picks
+DROP POLICY IF EXISTS draft_picks_authenticated_insert ON public.draft_picks;
 CREATE POLICY draft_picks_authenticated_insert ON public.draft_picks
   FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS draft_picks_authenticated_update ON public.draft_picks;
 CREATE POLICY draft_picks_authenticated_update ON public.draft_picks
   FOR UPDATE
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS draft_picks_authenticated_delete ON public.draft_picks;
 CREATE POLICY draft_picks_authenticated_delete ON public.draft_picks
   FOR DELETE
   USING (auth.role() = 'authenticated');
 
 -- Authenticated modify access for players (to allow marking drafted)
+DROP POLICY IF EXISTS players_authenticated_insert ON public.players;
 CREATE POLICY players_authenticated_insert ON public.players
   FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS players_authenticated_update ON public.players;
 CREATE POLICY players_authenticated_update ON public.players
   FOR UPDATE
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS players_authenticated_delete ON public.players;
 CREATE POLICY players_authenticated_delete ON public.players
   FOR DELETE
   USING (auth.role() = 'authenticated');

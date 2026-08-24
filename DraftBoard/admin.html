@@ -6,7 +6,7 @@
   <title>DraftBoard Admin</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=11" defer></script>
+  <script src="admin.js?v=12" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 p-6">
@@ -28,11 +28,12 @@
         <h2 class="font-semibold">Nomination Turn</h2>
         <div id="turn-status" class="mt-2 text-sm text-gray-600"></div>
         <div id="turn-order-list" class="mt-3 space-y-2"></div>
+        <p class="mt-3 text-sm text-gray-500">Team order is managed on the <a href="manager.html" class="text-blue-600 underline">Manager Team Setup</a> page. The turn advances automatically after each draft.</p>
         <div class="mt-3 flex flex-wrap gap-2">
-          <button id="save-turn-order" class="bg-blue-600 text-white px-3 py-2 rounded">Save Team Order</button>
-          <button id="advance-turn" class="bg-green-600 text-white px-3 py-2 rounded">Next Team</button>
+          <button id="start-draft" class="bg-green-600 text-white px-3 py-2 rounded">Start Draft</button>
+          <button id="reset-draft" class="bg-red-600 text-white px-3 py-2 rounded">Reset Entire Draft</button>
         </div>
-        <div id="turn-msg" class="text-sm text-red-500 mt-2"></div>
+        <div id="draft-control-msg" class="text-sm text-red-500 mt-2"></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div class="bg-white p-4 rounded shadow">

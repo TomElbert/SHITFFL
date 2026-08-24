@@ -31,7 +31,7 @@ let state = {
   teams: [],
   players: {}, // map id -> player
   picks: [],
-  draftState: {current_turn_order: 1, round_number: 1}
+  draftState: {current_turn_order: 1, round_number: 1, draft_started: false}
 };
 
 async function init() {
@@ -128,9 +128,9 @@ function renderLeague() {
   els.teamsList.innerHTML = '';
   const orderedTeams = [...state.teams].sort((a, b) => (a.turn_order || Number.MAX_SAFE_INTEGER) - (b.turn_order || Number.MAX_SAFE_INTEGER) || a.id - b.id);
   const currentTeam = orderedTeams.find(team => Number(team.turn_order) === Number(state.draftState.current_turn_order));
-  els.turnBanner.textContent = currentTeam
+  els.turnBanner.textContent = currentTeam && state.draftState.draft_started
     ? `Round ${state.draftState.round_number}: ${currentTeam.manager_name || ('Team '+currentTeam.id)} is up next to nominate a player.`
-    : 'Nomination order has not been set yet.';
+    : currentTeam ? 'Nomination order is ready. The draft has not started yet.' : 'Nomination order has not been set yet.';
   orderedTeams.forEach(team => {
     const teamPicks = state.picks.filter(dp => dp.team_id === team.id);
     const spent = teamPicks.reduce((s, x) => s + (x.cost||0), 0);
@@ -138,10 +138,10 @@ function renderLeague() {
     const remaining = STARTING_BUDGET - spent;
 
     const div = document.createElement('div');
-    div.className = `p-3 bg-gray-50 rounded border flex justify-between items-center ${team.id === currentTeam?.id ? 'border-blue-500 ring-2 ring-blue-100' : ''}`;
+    div.className = `p-3 bg-gray-50 rounded border flex justify-between items-center ${state.draftState.draft_started && team.id === currentTeam?.id ? 'border-blue-500 ring-2 ring-blue-100' : ''}`;
     div.innerHTML = `
       <div>
-        <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
+        <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${state.draftState.draft_started && team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
         <div class="text-sm text-gray-500">Roster: ${rosterCount} — Remaining: $${remaining}</div>
       </div>
       <div>
