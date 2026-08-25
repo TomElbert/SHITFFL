@@ -344,6 +344,13 @@ draftBtn.addEventListener('click', async ()=>{
     return;
   }
 
+  const remainingRosterSpotsAfterPick = Math.max(0, 12 - (teamPicks.length + 1));
+  const budgetAfterBid = STARTING_BUDGET - totalSpent - bid;
+  if (budgetAfterBid < remainingRosterSpotsAfterPick) {
+    draftMsg.textContent = `Bid too high. You must keep at least $${remainingRosterSpotsAfterPick} for the remaining players needed to reach 12.`;
+    return;
+  }
+
   // Evaluate the roster after this pick so the bid reserves money for every
   // required slot that is still empty.
   const rosterPlayers = teamPicks.map(dp => findPlayer(dp.player_id));
