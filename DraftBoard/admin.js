@@ -335,16 +335,30 @@ draftBtn.addEventListener('click', async ()=>{
   if (!teamId) { draftMsg.textContent = 'Select a team'; return; }
 
   // load current picks for team
-  const teamPicks = cache.picks.filter(p=>p.team_id === teamId);
+  const teamPicks = cache.picks.filter(p=>Number(p.team_id) === teamId);
   if (teamPicks.length >= 14) { draftMsg.textContent = 'Team already at max roster (14)'; return; }
 
   const totalSpent = teamPicks.reduce((s,x)=>s+(x.cost||0),0);
-  // compute remaining required slots optimally from existing roster
-  const rosterPlayers = teamPicks.map(dp => findPlayer(dp.player_id));
-  const status = computeRequiredStatus(rosterPlayers);
-  const remainingRequiredSlots = Object.values(status).reduce((acc,s)=> acc + (s.needCount||0), 0);
+  if (totalSpent + bid > STARTING_BUDGET) {
+    draftMsg.textContent = `Bid exceeds the team's remaining budget of $${STARTING_BUDGET - totalSpent}.`;
+    return;
+  }
 
-  const maxAllowable = STARTING_BUDGET - totalSpent - remainingRequiredSlots + 1;
+  // Evaluate the roster after this pick so the bid reserves money for every
+  // required slot that is still empty.
+  const rosterPlayers = teamPicks.map(dp => findPlayer(dp.player_id));
+  const proposedRoster = [...rosterPlayers, selectedPlayer];
+  const proposedStatus = computeRequiredStatus(proposedRoster);
+  const remainingRequiredSlots = getRemainingRequiredSlots(proposedStatus);
+  const proposedRosterCount = teamPicks.length + 1;
+  const picksUntilMinimumRoster = Math.max(0, 12 - proposedRosterCount);
+
+  if (remainingRequiredSlots > picksUntilMinimumRoster) {
+    draftMsg.textContent = `This pick would make it impossible to complete the minimum team by pick 12. Remaining required slots: ${remainingRequiredSlots}.`;
+    return;
+  }
+
+  const maxAllowable = STARTING_BUDGET - totalSpent - remainingRequiredSlots;
   if (bid > maxAllowable) { draftMsg.textContent = `Bid too high. Max allowable: $${maxAllowable}`; return; }
 
   // OK: insert draft_picks and update player
@@ -479,6 +493,10 @@ function computeRequiredStatus(players){
   status.DEF.needCount = Math.max(0, REQUIRED_SLOTS.DEF - status.DEF.haveCount);
   status.K.needCount = Math.max(0, REQUIRED_SLOTS.K - status.K.haveCount);
   return status;
+}
+
+function getRemainingRequiredSlots(status){
+  return Object.values(status).reduce((total, slot) => total + slot.needCount, 0);
 }
 
 function escapeHtml(s){ if (!s) return ''; return String(s).replace(/[&"'<>]/g, (c)=>({'&':'&amp;','"':'&quot;','\'':'&#39;','<':'&lt;','>':'&gt;'}[c])); }
