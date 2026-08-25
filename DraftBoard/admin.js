@@ -110,7 +110,7 @@ async function loadPlayersForPicks(picks){
 }
 
 function orderedTeams(){
-  return [...cache.teams].sort((a, b) => {
+  return cache.teams.filter(team => !team.completed).sort((a, b) => {
     const aOrder = Number.isInteger(a.turn_order) ? a.turn_order : Number.MAX_SAFE_INTEGER;
     const bOrder = Number.isInteger(b.turn_order) ? b.turn_order : Number.MAX_SAFE_INTEGER;
     return aOrder - bOrder || Number(a.id) - Number(b.id);
@@ -248,18 +248,14 @@ async function proceedToNextRound(){
 }
 
 async function advanceTurn(){
-  const teams = orderedTeams();
-  if (!teams.length || teams.some(team => !Number.isInteger(Number(team.turn_order)))) {
+  const allTeams = [...cache.teams].sort((a, b) => Number(a.turn_order || Number.MAX_SAFE_INTEGER) - Number(b.turn_order || Number.MAX_SAFE_INTEGER) || Number(a.id) - Number(b.id));
+  const teams = allTeams.filter(team => !team.completed);
+  if (!teams.length || allTeams.some(team => !Number.isInteger(Number(team.turn_order)))) {
     draftMsg.textContent = 'Set a complete team order on the Manager Team Setup page before drafting.';
     return;
   }
-  const currentIndex = teams.findIndex(team => Number(team.turn_order) === Number(cache.draftState.current_turn_order));
-  if (currentIndex < 0) {
-    draftMsg.textContent = 'The current nomination turn does not match the saved team order.';
-    return;
-  }
-  const nextIndex = (currentIndex + 1) % teams.length;
-  const isLastTeam = currentIndex === teams.length - 1;
+  const nextTeam = teams.find(team => Number(team.turn_order) > Number(cache.draftState.current_turn_order)) || teams[0];
+  const isLastTeam = !nextTeam || nextTeam === teams[0];
   if (isLastTeam) {
     const {error} = await supabaseClient.from('draft_state').update({round_complete:true, nominated_player_id:null}).eq('id',1);
     if (error) draftMsg.textContent = error.message;
@@ -267,7 +263,7 @@ async function advanceTurn(){
     return;
   }
   const {error} = await supabaseClient.from('draft_state').update({
-    current_turn_order: teams[nextIndex].turn_order,
+    current_turn_order: nextTeam.turn_order,
     round_complete:false
   }).eq('id', 1);
   if (error) { draftMsg.textContent = error.message; return; }
@@ -276,7 +272,7 @@ async function advanceTurn(){
 
 function renderTeams(){
   teamSelect.innerHTML='<option value="" selected disabled>Select winning team</option>';
-  cache.teams.forEach(t=>{
+  cache.teams.filter(team => !team.completed).forEach(t=>{
     const opt = document.createElement('option'); opt.value = t.id; opt.text = t.manager_name || ('Team '+t.id);
     teamSelect.appendChild(opt);
   });

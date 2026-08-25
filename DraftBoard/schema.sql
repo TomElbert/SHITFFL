@@ -5,11 +5,15 @@
 CREATE TABLE IF NOT EXISTS public.teams (
   id SERIAL PRIMARY KEY,
   manager_name TEXT,
-  turn_order INTEGER
+  turn_order INTEGER,
+  completed BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 ALTER TABLE IF EXISTS public.teams
   ADD COLUMN IF NOT EXISTS turn_order INTEGER;
+
+ALTER TABLE IF EXISTS public.teams
+  ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Persistent nomination-turn state. The Admin advances this after each team
 -- has had its chance to nominate a player.

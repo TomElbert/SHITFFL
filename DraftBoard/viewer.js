@@ -41,20 +41,31 @@ async function init() {
 }
 
 async function loadAll() {
-  const [tRes, pRes, dRes, sRes] = await Promise.all([
+  const [tRes, players, dRes, sRes] = await Promise.all([
     supabaseClient.from('teams').select('*'),
-    supabaseClient.from('players').select('*'),
+    loadAllPlayers(),
     supabaseClient.from('draft_picks').select('*'),
     supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
   ]);
 
   state.teams = (tRes.data || []).slice();
   state.players = {};
-  (pRes.data || []).forEach(p => state.players[p.id] = p);
+  players.forEach(p => state.players[String(p.id)] = p);
   state.picks = (dRes.data || []).slice();
   state.draftState = sRes.data || state.draftState;
   await loadPlayersForPicks(state.picks);
   renderLeague();
+}
+
+async function loadAllPlayers(){
+  const players = [];
+  const pageSize = 1000;
+  for (let page = 0; ; page += 1) {
+    const {data, error} = await supabaseClient.from('players').select('*').range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
+    players.push(...(data || []));
+    if (!data || data.length < pageSize) return players;
+  }
 }
 
 async function loadPlayersForPicks(picks) {
@@ -103,9 +114,10 @@ async function loadPicksOnly() {
 }
 
 async function loadPlayersOnly(){
-  const {data} = await supabaseClient.from('players').select('*');
+  const data = await loadAllPlayers();
   state.players = {};
-  (data||[]).forEach(p=> state.players[p.id] = p);
+  data.forEach(p=> state.players[String(p.id)] = p);
+  await loadPlayersForPicks(state.picks);
   if (!els.teamView.classList.contains('hidden')) {
     const teamId = +els.teamView.dataset.teamId;
     if (teamId) showTeam(teamId);
@@ -126,12 +138,13 @@ async function loadDraftStateOnly(){
 
 function renderLeague() {
   els.teamsList.innerHTML = '';
-  const orderedTeams = [...state.teams].sort((a, b) => (a.turn_order || Number.MAX_SAFE_INTEGER) - (b.turn_order || Number.MAX_SAFE_INTEGER) || a.id - b.id);
+  const orderedTeams = state.teams.filter(team => !team.completed).sort((a, b) => (a.turn_order || Number.MAX_SAFE_INTEGER) - (b.turn_order || Number.MAX_SAFE_INTEGER) || a.id - b.id);
+  const displayTeams = [...state.teams].sort((a, b) => (a.turn_order || Number.MAX_SAFE_INTEGER) - (b.turn_order || Number.MAX_SAFE_INTEGER) || a.id - b.id);
   const currentTeam = orderedTeams.find(team => Number(team.turn_order) === Number(state.draftState.current_turn_order));
   els.turnBanner.textContent = currentTeam && state.draftState.draft_started
     ? `Round ${state.draftState.round_number}: ${currentTeam.manager_name || ('Team '+currentTeam.id)} is up next to nominate a player.`
     : currentTeam ? 'Nomination order is ready. The draft has not started yet.' : 'Nomination order has not been set yet.';
-  orderedTeams.forEach(team => {
+  displayTeams.forEach(team => {
     const teamPicks = state.picks.filter(dp => Number(dp.team_id) === Number(team.id));
     const spent = teamPicks.reduce((s, x) => s + (x.cost||0), 0);
     const rosterCount = teamPicks.length;
@@ -141,7 +154,7 @@ function renderLeague() {
     div.className = `p-3 bg-gray-50 rounded border flex justify-between items-center ${state.draftState.draft_started && team.id === currentTeam?.id ? 'border-blue-500 ring-2 ring-blue-100' : ''}`;
     div.innerHTML = `
       <div>
-        <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${state.draftState.draft_started && team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
+        <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${team.completed ? ' (Completed)' : state.draftState.draft_started && team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
         <div class="text-sm text-gray-500">Players drafted: ${rosterCount} / 14 — Remaining: $${remaining}</div>
       </div>
       <div>

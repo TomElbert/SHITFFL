@@ -15,6 +15,8 @@ const teamsListEl = document.getElementById('teams-list');
 const messageEl = document.getElementById('message');
 
 let teams = [];
+let picks = [];
+let players = {};
 
 signInBtn.addEventListener('click', signIn);
 [emailEl, passwordEl].forEach(input => input.addEventListener('keydown', event => {
@@ -46,12 +48,27 @@ async function signIn() {
 }
 
 async function loadTeams() {
-  const {data, error} = await supabaseClient.from('teams').select('*').order('turn_order', {ascending:true, nullsFirst:false}).order('id', {ascending:true});
+  const [{data, error}, picksResult, playersResult] = await Promise.all([
+    supabaseClient.from('teams').select('*').order('turn_order', {ascending:true, nullsFirst:false}).order('id', {ascending:true}),
+    supabaseClient.from('draft_picks').select('*'),
+    supabaseClient.from('players').select('id,position')
+  ]);
   if (error) {
     showMessage(error.message, true);
     return;
   }
   teams = data || [];
+  picks = picksResult.data || [];
+  players = Object.fromEntries((playersResult.data || []).map(player => [String(player.id), player]));
+  const pickIds = [...new Set(picks.map(pick => String(pick.player_id)).filter(Boolean))];
+  if (pickIds.length) {
+    const draftedPlayers = await supabaseClient.from('players').select('id,position').in('id', pickIds);
+    if (draftedPlayers.error) {
+      showMessage(draftedPlayers.error.message, true);
+      return;
+    }
+    draftedPlayers.data.forEach(player => { players[String(player.id)] = player; });
+  }
   renderTeams();
 }
 
@@ -64,10 +81,34 @@ function renderTeams() {
   teams.forEach((team, index) => {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2 p-2 border rounded';
-    row.innerHTML = `<input data-team-id="${team.id}" type="number" min="1" class="team-order w-20 p-2 border rounded" value="${team.turn_order || index + 1}" /><span class="flex-1">${escapeHtml(team.manager_name || ('Team '+team.id))}</span><button data-team-id="${team.id}" class="remove-team bg-red-600 text-white px-2 py-1 rounded">Remove</button>`;
+    const teamPicks = picks.filter(pick => Number(pick.team_id) === Number(team.id));
+    const status = computeRequiredStatus(teamPicks.map(pick => players[String(pick.player_id)]));
+    const canComplete = teamPicks.length >= 12 && Object.values(status).every(slot => slot.filled);
+    row.innerHTML = `<input data-team-id="${team.id}" type="number" min="1" class="team-order w-20 p-2 border rounded" value="${team.turn_order || index + 1}" /><span class="flex-1">${escapeHtml(team.manager_name || ('Team '+team.id))} <span class="text-xs text-gray-500">${teamPicks.length}/14 players${team.completed ? ' | Completed' : ''}</span></span><button data-team-id="${team.id}" class="complete-team ${team.completed ? 'bg-yellow-600' : 'bg-green-600'} text-white px-2 py-1 rounded" ${!team.completed && !canComplete ? 'disabled' : ''}>${team.completed ? 'Reopen' : 'Mark Complete'}</button><button data-team-id="${team.id}" class="remove-team bg-red-600 text-white px-2 py-1 rounded">Remove</button>`;
+    row.querySelector('.complete-team').addEventListener('click', () => setCompleted(team, !team.completed, canComplete));
     row.querySelector('.remove-team').addEventListener('click', () => removeTeam(team));
     teamsListEl.appendChild(row);
   });
+}
+
+async function setCompleted(team, completed, canComplete) {
+  if (completed && !canComplete) {
+    showMessage('A team must have at least 12 players and all required positions before completion.', true);
+    return;
+  }
+  const {error} = await supabaseClient.from('teams').update({completed}).eq('id', team.id);
+  if (error) { showMessage(error.message, true); return; }
+  showMessage(completed ? 'Manager marked complete and removed from nomination rotation.' : 'Manager reopened.');
+  await loadTeams();
+}
+
+function computeRequiredStatus(teamPlayers) {
+  const counts = {QB:0, RB:0, WR:0, TE:0, DEF:0, K:0};
+  (teamPlayers || []).forEach(player => { if (player && counts[player.position] !== undefined) counts[player.position] += 1; });
+  const rb = Math.min(counts.RB, 2);
+  const wrte = Math.min(counts.WR + counts.TE, 3);
+  const flex = Math.min(Math.max(0, counts.RB - 2) + Math.max(0, counts.WR + counts.TE - 3), 1);
+  return {QB:{filled:counts.QB >= 1},RB:{filled:counts.RB >= 2},WRTE:{filled:wrte >= 3},FLEX:{filled:flex >= 1},DEF:{filled:counts.DEF >= 1},K:{filled:counts.K >= 1}};
 }
 
 async function addTeam() {
