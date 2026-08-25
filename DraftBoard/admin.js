@@ -352,14 +352,18 @@ draftBtn.addEventListener('click', async ()=>{
   const remainingRequiredSlots = getRemainingRequiredSlots(proposedStatus);
   const proposedRosterCount = teamPicks.length + 1;
   const picksUntilMinimumRoster = Math.max(0, 12 - proposedRosterCount);
+  const minimumDollarsToReserve = Math.max(remainingRequiredSlots, picksUntilMinimumRoster);
 
   if (remainingRequiredSlots > picksUntilMinimumRoster) {
     draftMsg.textContent = `This pick would make it impossible to complete the minimum team by pick 12. Remaining required slots: ${remainingRequiredSlots}.`;
     return;
   }
 
-  const maxAllowable = STARTING_BUDGET - totalSpent - remainingRequiredSlots;
-  if (bid > maxAllowable) { draftMsg.textContent = `Bid too high. Max allowable: $${maxAllowable}`; return; }
+  const maxAllowable = STARTING_BUDGET - totalSpent - minimumDollarsToReserve;
+  if (bid > maxAllowable) {
+    draftMsg.textContent = `Bid too high. Max allowable: $${Math.max(0, maxAllowable)}. You must reserve $${minimumDollarsToReserve} for the remaining roster.`;
+    return;
+  }
 
   // OK: insert draft_picks and update player
   const {error:insErr} = await supabaseClient.from('draft_picks').insert([{player_id: selectedPlayer.id, team_id: teamId, cost: bid, round_number:cache.draftState.round_number}]);

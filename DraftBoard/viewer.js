@@ -132,7 +132,7 @@ function renderLeague() {
     ? `Round ${state.draftState.round_number}: ${currentTeam.manager_name || ('Team '+currentTeam.id)} is up next to nominate a player.`
     : currentTeam ? 'Nomination order is ready. The draft has not started yet.' : 'Nomination order has not been set yet.';
   orderedTeams.forEach(team => {
-    const teamPicks = state.picks.filter(dp => dp.team_id === team.id);
+    const teamPicks = state.picks.filter(dp => Number(dp.team_id) === Number(team.id));
     const spent = teamPicks.reduce((s, x) => s + (x.cost||0), 0);
     const rosterCount = teamPicks.length;
     const remaining = STARTING_BUDGET - spent;
@@ -142,7 +142,7 @@ function renderLeague() {
     div.innerHTML = `
       <div>
         <div class="font-semibold">${team.turn_order ? '#'+team.turn_order+' — ' : ''}${escapeHtml(team.manager_name || 'Team '+team.id)}${state.draftState.draft_started && team.id === currentTeam?.id ? ' (Up Next)' : ''}</div>
-        <div class="text-sm text-gray-500">Roster: ${rosterCount} — Remaining: $${remaining}</div>
+        <div class="text-sm text-gray-500">Players drafted: ${rosterCount} / 14 — Remaining: $${remaining}</div>
       </div>
       <div>
         <button data-team="${team.id}" class="view-team px-3 py-1 bg-blue-600 text-white rounded">View</button>
@@ -170,7 +170,7 @@ function showTeam(teamId){
   els.teamTitle.textContent = team.manager_name || ('Team '+team.id);
 
   // roster
-  const teamPicks = state.picks.filter(dp => dp.team_id === teamId).sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
+  const teamPicks = state.picks.filter(dp => Number(dp.team_id) === Number(teamId)).sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
   const roster = teamPicks.map(dp => ({...dp, player: state.players[String(dp.player_id)]}));
 
   const spent = teamPicks.reduce((s,x)=>s+(x.cost||0),0);
@@ -181,18 +181,19 @@ function showTeam(teamId){
   renderChecklist(status);
 
   // roster list
-  els.rosterList.innerHTML = '<div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-xs uppercase text-gray-500"><tr><th class="p-2">Player Name</th><th class="p-2">Position</th><th class="p-2">Depth</th><th class="p-2">Bye Week</th><th class="p-2">Injury Status</th><th class="p-2">Injury Text</th><th class="p-2">Cost</th></tr></thead><tbody id="roster-table-body"></tbody></table></div>';
+  els.rosterList.innerHTML = '<div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="border-b text-xs uppercase text-gray-500"><tr><th class="p-2">Player Name</th><th class="p-2">NFL Team</th><th class="p-2">Position</th><th class="p-2">Depth</th><th class="p-2">Bye Week</th><th class="p-2">Injury Status</th><th class="p-2">Injury Text</th><th class="p-2">Cost</th></tr></thead><tbody id="roster-table-body"></tbody></table></div>';
   const rosterBody = document.getElementById('roster-table-body');
   roster.forEach(r=>{
     const name = r.player ? (r.player.name || r.player.display_name || r.player.full_name || r.player.id) : r.player_id;
     const pos = r.player ? (r.player.position || 'UNK') : 'UNK';
+    const nflTeam = r.player ? (r.player.nfl_team || 'FA') : '';
     const depth = r.player ? (r.player.depth_chart_position || r.player.depth_chart_order || '') : '';
     const byeWeek = r.player ? (r.player.bye_week || '') : '';
     const injuryStatus = r.player ? (r.player.injury_status || '') : '';
     const injuryText = r.player ? (r.player.injury_notes || '') : '';
     const row = document.createElement('tr');
     row.className = 'border-b align-top';
-    row.innerHTML = `<td class="p-2 font-medium">${escapeHtml(name)}</td><td class="p-2">${escapeHtml(pos)}</td><td class="p-2">${escapeHtml(depth)}</td><td class="p-2">${escapeHtml(byeWeek)}</td><td class="p-2">${escapeHtml(injuryStatus)}</td><td class="p-2">${escapeHtml(injuryText)}</td><td class="p-2">$${r.cost}</td>`;
+    row.innerHTML = `<td class="p-2 font-medium">${escapeHtml(name)}</td><td class="p-2">${escapeHtml(nflTeam)}</td><td class="p-2">${escapeHtml(pos)}</td><td class="p-2">${escapeHtml(depth)}</td><td class="p-2">${escapeHtml(byeWeek)}</td><td class="p-2">${escapeHtml(injuryStatus)}</td><td class="p-2">${escapeHtml(injuryText)}</td><td class="p-2">$${r.cost}</td>`;
     rosterBody.appendChild(row);
   });
 }
