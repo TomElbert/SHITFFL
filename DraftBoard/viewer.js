@@ -31,7 +31,7 @@ let state = {
   teams: [],
   players: {}, // map id -> player
   picks: [],
-  draftState: {current_turn_order: 1, round_number: 1, draft_started: false}
+  draftState: {current_turn_order: 1, round_number: 1, draft_started: false, round_complete: false}
 };
 
 async function init() {
@@ -41,20 +41,27 @@ async function init() {
 }
 
 async function loadAll() {
-  const [tRes, players, dRes, sRes] = await Promise.all([
-    supabaseClient.from('teams').select('*'),
-    loadAllPlayers(),
-    supabaseClient.from('draft_picks').select('*'),
-    supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
-  ]);
+  try {
+    const [tRes, players, dRes, sRes] = await Promise.all([
+      supabaseClient.from('teams').select('*'),
+      loadAllPlayers(),
+      supabaseClient.from('draft_picks').select('*'),
+      supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
+    ]);
+    if (tRes.error) throw tRes.error;
+    if (dRes.error) throw dRes.error;
+    if (sRes.error) throw sRes.error;
 
-  state.teams = (tRes.data || []).slice();
-  state.players = {};
-  players.forEach(p => state.players[String(p.id)] = p);
-  state.picks = (dRes.data || []).slice();
-  state.draftState = sRes.data || state.draftState;
-  await loadPlayersForPicks(state.picks);
-  renderLeague();
+    state.teams = (tRes.data || []).slice();
+    state.players = {};
+    players.forEach(p => state.players[String(p.id)] = p);
+    state.picks = (dRes.data || []).slice();
+    state.draftState = sRes.data || state.draftState;
+    await loadPlayersForPicks(state.picks);
+    renderLeague();
+  } catch (error) {
+    console.error('Failed to load draft data:', error);
+  }
 }
 
 async function loadAllPlayers(){
@@ -84,21 +91,31 @@ async function loadPlayersForPicks(picks) {
 }
 
 function subscribeRealtime() {
-  supabaseClient.channel('draft-channel')
-    .on('postgres_changes', {event: '*', schema: 'public', table: 'draft_picks'}, payload => {
-      // reload picks
-      loadPicksOnly();
-    })
-    .on('postgres_changes', {event: '*', schema: 'public', table: 'players'}, payload => {
-      loadPlayersOnly();
-    })
-    .on('postgres_changes', {event: '*', schema: 'public', table: 'teams'}, payload => {
-      loadTeamsOnly();
-    })
-    .on('postgres_changes', {event: '*', schema: 'public', table: 'draft_state'}, payload => {
-      loadDraftStateOnly();
-    })
-    .subscribe();
+  try {
+    supabaseClient.channel('draft-channel')
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'draft_picks'}, payload => {
+        // reload picks
+        loadPicksOnly();
+      })
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'players'}, payload => {
+        loadPlayersOnly();
+      })
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'teams'}, payload => {
+        loadTeamsOnly();
+      })
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'draft_state'}, payload => {
+        loadDraftStateOnly();
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Viewer realtime subscription established');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.error('Viewer realtime subscription failed:', status);
+        }
+      });
+  } catch (error) {
+    console.error('Failed to setup viewer realtime subscription:', error);
+  }
 }
 
 async function loadPicksOnly() {

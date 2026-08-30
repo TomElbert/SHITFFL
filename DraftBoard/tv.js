@@ -20,27 +20,32 @@ let latestLoadVersion = 0;
 
 async function loadAll(){
   const loadVersion = ++latestLoadVersion;
-  const [teamsResult, playersResult, picksResult, stateResult] = await Promise.all([
-    supabaseClient.from('teams').select('*'),
-    supabaseClient.from('players').select('*'),
-    supabaseClient.from('draft_picks').select('*'),
-    supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
-  ]);
-  const errors = [teamsResult, playersResult, picksResult, stateResult].filter(result => result.error);
-  if (errors.length) throw errors[0].error;
-  if (loadVersion !== latestLoadVersion) return;
-  state.teams = teamsResult.data || [];
-  state.players = {};
-  (playersResult.data || []).forEach(player => state.players[String(player.id)] = player);
-  state.picks = picksResult.data || [];
-  state.draftState = stateResult.data || {current_turn_order:1, round_number:1, draft_started:false};
-  await loadPlayersForPicks([
-    ...state.picks,
-    {player_id: state.draftState.nominated_player_id},
-    {player_id: state.draftState.last_winner_player_id}
-  ]);
-  if (loadVersion !== latestLoadVersion) return;
-  render();
+  try {
+    const [teamsResult, playersResult, picksResult, stateResult] = await Promise.all([
+      supabaseClient.from('teams').select('*'),
+      supabaseClient.from('players').select('*'),
+      supabaseClient.from('draft_picks').select('*'),
+      supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
+    ]);
+    const errors = [teamsResult, playersResult, picksResult, stateResult].filter(result => result.error);
+    if (errors.length) throw errors[0].error;
+    if (loadVersion !== latestLoadVersion) return;
+    state.teams = teamsResult.data || [];
+    state.players = {};
+    (playersResult.data || []).forEach(player => state.players[String(player.id)] = player);
+    state.picks = picksResult.data || [];
+    state.draftState = stateResult.data || {current_turn_order:1, round_number:1, draft_started:false, round_complete:false};
+    await loadPlayersForPicks([
+      ...state.picks,
+      {player_id: state.draftState.nominated_player_id},
+      {player_id: state.draftState.last_winner_player_id}
+    ]);
+    if (loadVersion !== latestLoadVersion) return;
+    render();
+  } catch (error) {
+    console.error('Failed to load TV data:', error);
+    els.round.textContent = 'Error loading draft: ' + (error.message || String(error));
+  }
 }
 
 async function loadPlayersForPicks(picks){
@@ -52,12 +57,22 @@ async function loadPlayersForPicks(picks){
 }
 
 function subscribe(){
-  supabaseClient.channel('tv-draft-channel')
-    .on('postgres_changes', {event:'*', schema:'public', table:'draft_state'}, loadAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'draft_picks'}, loadAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'teams'}, loadAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'players'}, loadAll)
-    .subscribe();
+  try {
+    const channel = supabaseClient.channel('tv-draft-channel')
+      .on('postgres_changes', {event:'*', schema:'public', table:'draft_state'}, loadAll)
+      .on('postgres_changes', {event:'*', schema:'public', table:'draft_picks'}, loadAll)
+      .on('postgres_changes', {event:'*', schema:'public', table:'teams'}, loadAll)
+      .on('postgres_changes', {event:'*', schema:'public', table:'players'}, loadAll)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('TV realtime subscription established');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.error('TV realtime subscription failed:', status);
+        }
+      });
+  } catch (error) {
+    console.error('Failed to setup TV realtime subscription:', error);
+  }
 }
 
 function orderedTeams(){

@@ -62,20 +62,28 @@ resetDraftBtn.addEventListener('click', resetDraft);
 nextRoundBtn.addEventListener('click', proceedToNextRound);
 
 async function loadAll(){
-  const [players,tRes,dRes,sRes] = await Promise.all([
-    loadAllPlayers(),
-    supabaseClient.from('teams').select('*'),
-    supabaseClient.from('draft_picks').select('*'),
-    supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
-  ]);
-  cache.players = players;
-  cache.teams = tRes.data || [];
-  cache.picks = (dRes.data || []).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
-  cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false, round_complete:false, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null};
-  await loadPlayersForPicks(cache.picks);
-  renderTeams();
-  renderTurnControls();
-  renderLog();
+  try {
+    const [players,tRes,dRes,sRes] = await Promise.all([
+      loadAllPlayers(),
+      supabaseClient.from('teams').select('*'),
+      supabaseClient.from('draft_picks').select('*'),
+      supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle()
+    ]);
+    if (tRes.error) throw tRes.error;
+    if (dRes.error) throw dRes.error;
+    if (sRes.error) throw sRes.error;
+    cache.players = players;
+    cache.teams = tRes.data || [];
+    cache.picks = (dRes.data || []).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+    cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false, round_complete:false, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null};
+    await loadPlayersForPicks(cache.picks);
+    renderTeams();
+    renderTurnControls();
+    renderLog();
+  } catch (error) {
+    console.error('Failed to load draft data:', error);
+    authMsg.textContent = 'Error loading draft data: ' + (error.message || String(error));
+  }
 }
 
 async function loadAllPlayers(){
@@ -111,8 +119,8 @@ async function loadPlayersForPicks(picks){
 
 function orderedTeams(){
   return cache.teams.filter(team => !team.completed).sort((a, b) => {
-    const aOrder = Number.isInteger(a.turn_order) ? a.turn_order : Number.MAX_SAFE_INTEGER;
-    const bOrder = Number.isInteger(b.turn_order) ? b.turn_order : Number.MAX_SAFE_INTEGER;
+    const aOrder = Number.isInteger(Number(a.turn_order)) ? Number(a.turn_order) : Number.MAX_SAFE_INTEGER;
+    const bOrder = Number.isInteger(Number(b.turn_order)) ? Number(b.turn_order) : Number.MAX_SAFE_INTEGER;
     return aOrder - bOrder || Number(a.id) - Number(b.id);
   });
 }
@@ -202,11 +210,11 @@ async function syncPlayers(){
 async function startDraft(){
   draftControlMsg.textContent = '';
   const teams = orderedTeams();
-  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+  if (!teams.length || teams.some(team => !Number.isInteger(Number(team.turn_order)) || Number(team.turn_order) < 1)) {
     draftControlMsg.textContent = 'Set a complete team order on the Manager Team Setup page first.';
     return;
   }
-  const {error} = await supabaseClient.from('draft_state').update({draft_started:true, round_complete:false, current_turn_order:teams[0].turn_order, round_number:1, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null}).eq('id',1);
+  const {error} = await supabaseClient.from('draft_state').update({draft_started:true, round_complete:false, current_turn_order:Number(teams[0].turn_order), round_number:1, nominated_player_id:null, last_winner_player_id:null, last_winner_team_id:null, last_winning_cost:null}).eq('id',1);
   if (error) { draftControlMsg.textContent = error.message; return; }
   await loadAll();
 }
@@ -230,12 +238,12 @@ async function resetDraft(){
 
 async function proceedToNextRound(){
   const teams = orderedTeams();
-  if (!teams.length || teams.some(team => !Number.isInteger(team.turn_order))) {
+  if (!teams.length || teams.some(team => !Number.isInteger(Number(team.turn_order)) || Number(team.turn_order) < 1)) {
     draftControlMsg.textContent = 'Set a complete team order before starting another round.';
     return;
   }
   const {error} = await supabaseClient.from('draft_state').update({
-    current_turn_order:teams[0].turn_order,
+    current_turn_order:Number(teams[0].turn_order),
     round_number:cache.draftState.round_number + 1,
     round_complete:false,
     nominated_player_id:null,
@@ -250,12 +258,12 @@ async function proceedToNextRound(){
 async function advanceTurn(){
   const allTeams = [...cache.teams].sort((a, b) => Number(a.turn_order || Number.MAX_SAFE_INTEGER) - Number(b.turn_order || Number.MAX_SAFE_INTEGER) || Number(a.id) - Number(b.id));
   const teams = allTeams.filter(team => !team.completed);
-  if (!teams.length || allTeams.some(team => !Number.isInteger(Number(team.turn_order)))) {
+  if (!teams.length || allTeams.some(team => !Number.isInteger(Number(team.turn_order)) || Number(team.turn_order) < 1)) {
     draftMsg.textContent = 'Set a complete team order on the Manager Team Setup page before drafting.';
     return;
   }
   const nextTeam = teams.find(team => Number(team.turn_order) > Number(cache.draftState.current_turn_order)) || teams[0];
-  const isLastTeam = !nextTeam || nextTeam === teams[0];
+  const isLastTeam = !nextTeam || Number(nextTeam.turn_order) === Number(teams[0].turn_order);
   if (isLastTeam) {
     const {error} = await supabaseClient.from('draft_state').update({round_complete:true, nominated_player_id:null}).eq('id',1);
     if (error) draftMsg.textContent = error.message;
@@ -392,7 +400,7 @@ function renderLog(){
   logList.innerHTML = '<div class="grid grid-cols-5 gap-2 px-2 pb-2 text-xs font-semibold uppercase text-gray-500"><div>Player Name</div><div>Position</div><div>Cost</div><div>Manager</div><div></div></div>';
   cache.picks.forEach(pick=>{
     const player = findPlayer(pick.player_id);
-    const team = cache.teams.find(t=>t.id===pick.team_id) || {};
+    const team = cache.teams.find(t=>Number(t.id)===Number(pick.team_id)) || {};
     const div = document.createElement('div');
     div.className = 'draft-log-row grid grid-cols-5 gap-2 items-center p-2 border-b text-sm';
     div.innerHTML = `<div class="font-medium">${escapeHtml(playerName(player) || pick.player_id)}</div><div>${escapeHtml(player.position || '')}</div><div>$${pick.cost}</div><div>${escapeHtml(team.manager_name || ('Team '+pick.team_id))}</div><div><button data-id="${pick.id}" class="edit-px bg-yellow-500 text-white px-2 py-1 rounded text-sm">Edit</button></div>`;
@@ -513,7 +521,7 @@ function playerName(player){
 }
 
 function findPlayer(playerId){
-  return cache.players.find(player => String(player.id) === String(playerId)) || {};
+  return cache.players.find(player => String(player.id) === String(playerId)) || {name:'Unknown', position:'UNK'};
 }
 
 // initial load of teams & players for search
