@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DraftBoard — Fantasy Auction Draft Manager</title>
+  <link rel="icon" href="data:," />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .card-hover {
+      transition: all 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-12">
+    <!-- Header -->
+    <header class="text-center mb-16">
+      <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-4">DraftBoard</h1>
+      <p class="text-xl md:text-2xl text-gray-600">Fantasy Auction Draft Manager</p>
+      <p class="text-gray-500 mt-2 max-w-2xl mx-auto">Coordinate your league's fantasy football auction draft with real-time updates and role-based interfaces.</p>
+    </header>
+
+    <!-- Role Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+      
+      <!-- Admin Panel Card -->
+      <a href="admin.html" class="card-hover">
+        <div class="bg-white rounded-lg shadow-lg p-8 h-full">
+          <div class="bg-red-100 rounded-full w-16 h-16 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.5 1.5H2.25A.75.75 0 001.5 2.25v15.5c0 .414.336.75.75.75h15.5a.75.75 0 00.75-.75V9.5m-17-8h17m-17 4h17M4 15h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 mb-3">Admin Panel</h2>
+          <p class="text-gray-600 mb-4">Conduct the draft by nominating players, managing bids, and advancing turns. Control the flow of the entire auction.</p>
+          <div class="space-y-2 text-sm text-gray-500">
+            <p>✓ Nominate players</p>
+            <p>✓ Manage team selections & bids</p>
+            <p>✓ Control round progression</p>
+            <p>✓ View draft log</p>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <button class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded">
+              Open Admin Panel
+            </button>
+          </div>
+        </div>
+      </a>
+
+      <!-- Manager Setup Card -->
+      <a href="manager.html" class="card-hover">
+        <div class="bg-white rounded-lg shadow-lg p-8 h-full">
+          <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 mb-3">Manager Setup</h2>
+          <p class="text-gray-600 mb-4">Add teams to the draft and establish the nomination order. Monitor team rosters and completion status.</p>
+          <div class="space-y-2 text-sm text-gray-500">
+            <p>✓ Add/remove teams</p>
+            <p>✓ Set nomination order</p>
+            <p>✓ View player counts</p>
+            <p>✓ Mark teams complete</p>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+              Team Setup
+            </button>
+          </div>
+        </div>
+      </a>
+
+      <!-- TV Display Card -->
+      <a href="tv.html" class="card-hover">
+        <div class="bg-white rounded-lg shadow-lg p-8 h-full">
+          <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4V5h12v10z"/>
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 mb-3">TV Display</h2>
+          <p class="text-gray-600 mb-4">Project this on a screen for live updates. Shows current nomination, active auction, and recent picks in real-time.</p>
+          <div class="space-y-2 text-sm text-gray-500">
+            <p>✓ Live round info</p>
+            <p>✓ Current nominator</p>
+            <p>✓ Active auction winner</p>
+            <p>✓ Round recap table</p>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <button class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded">
+              Open TV Display
+            </button>
+          </div>
+        </div>
+      </a>
+
+      <!-- Viewer/League Overview Card -->
+      <a href="index.html" class="card-hover">
+        <div class="bg-white rounded-lg shadow-lg p-8 h-full">
+          <div class="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+              <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a6 6 0 016 6v3a1 1 0 11-2 0v-3a4 4 0 00-4-4H6a1 1 0 000 2H4a2 2 0 01-2-2V5zm12 9a1 1 0 100 2 1 1 0 000-2zM8 16a1 1 0 11-2 0 1 1 0 012 0z"/>
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 mb-3">League Viewer</h2>
+          <p class="text-gray-600 mb-4">View all team rosters and current standings. See who's drafted what and track remaining budgets in real-time.</p>
+          <div class="space-y-2 text-sm text-gray-500">
+            <p>✓ League overview</p>
+            <p>✓ Team rosters</p>
+            <p>✓ Player details</p>
+            <p>✓ Budget tracking</p>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <button class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded">
+              View League
+            </button>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- How to Use Section -->
+    <section class="bg-white rounded-lg shadow-lg p-8 mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-6">How to Use DraftBoard</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div>
+          <div class="bg-blue-50 rounded-lg p-4 mb-3">
+            <div class="text-2xl font-bold text-blue-600">1</div>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Setup Teams</h3>
+          <p class="text-sm text-gray-600">Go to <strong>Manager Setup</strong> to add teams and set the nomination order.</p>
+        </div>
+        <div>
+          <div class="bg-green-50 rounded-lg p-4 mb-3">
+            <div class="text-2xl font-bold text-green-600">2</div>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Start Admin</h3>
+          <p class="text-sm text-gray-600">Open the <strong>Admin Panel</strong> and click "Start Draft" to begin the auction.</p>
+        </div>
+        <div>
+          <div class="bg-red-50 rounded-lg p-4 mb-3">
+            <div class="text-2xl font-bold text-red-600">3</div>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Run the Draft</h3>
+          <p class="text-sm text-gray-600">Use the Admin Panel to nominate players, manage bids, and advance turns.</p>
+        </div>
+        <div>
+          <div class="bg-purple-50 rounded-lg p-4 mb-3">
+            <div class="text-2xl font-bold text-purple-600">4</div>
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-2">Monitor Live</h3>
+          <p class="text-sm text-gray-600">Display the <strong>TV Display</strong> and view rosters in <strong>League Viewer</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Requirements Section -->
+    <section class="bg-gray-50 rounded-lg p-8 mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 mb-4">Requirements</h2>
+      <p class="text-gray-600 mb-4">Before you begin, make sure you have:</p>
+      <ul class="space-y-2 text-gray-600">
+        <li class="flex items-center"><span class="text-green-600 font-bold mr-3">✓</span> Teams added in Manager Setup</li>
+        <li class="flex items-center"><span class="text-green-600 font-bold mr-3">✓</span> Nomination order set (unique positive numbers)</li>
+        <li class="flex items-center"><span class="text-green-600 font-bold mr-3">✓</span> Admin authenticated (sign in required)</li>
+        <li class="flex items-center"><span class="text-green-600 font-bold mr-3">✓</span> A screen for the TV display (optional but recommended)</li>
+      </ul>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-gray-500 text-sm">
+      <p>DraftBoard — Fantasy Auction Draft Manager | Real-time updates powered by Supabase</p>
+    </footer>
+  </div>
+</body>
+</html>
