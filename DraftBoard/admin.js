@@ -436,17 +436,49 @@ function renderDraftResultSummary(teamId){
 
 function renderManagerRosterOverview(){
   managerRosterOverview.innerHTML = '';
+  const slotOrder = {QB:1, RB:2, WRTE:3, FLEX:4, DEF:5, K:6, BENCH:7};
   cache.teams
     .slice()
     .sort((a, b) => Number(a.turn_order || Number.MAX_SAFE_INTEGER) - Number(b.turn_order || Number.MAX_SAFE_INTEGER) || Number(a.id) - Number(b.id))
     .forEach(team => {
       const summary = getTeamDraftSummary(team.id);
+      const roster = summary.picks
+        .map(pick => ({pick, player:findPlayer(pick.player_id)}))
+        .sort((a, b) => {
+          const aSlot = a.slot || 'BENCH';
+          const bSlot = b.slot || 'BENCH';
+          return (slotOrder[aSlot] || 99) - (slotOrder[bSlot] || 99)
+            || playerName(a.player).localeCompare(playerName(b.player));
+        });
+      allocateRosterSlots(roster);
+      roster.sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99) || playerName(a.player).localeCompare(playerName(b.player)));
       const row = document.createElement('div');
       row.className = 'border-b pb-3 last:border-b-0 last:pb-0';
-      row.innerHTML = `<div class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></div><div class="text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</div>`;
+      const rosterHtml = roster.length
+        ? roster.map(({pick, player, slot}) => `<li class="flex justify-between gap-3 py-1 border-t"><span><span class="font-semibold text-gray-500">${escapeHtml(slot)}</span> ${escapeHtml(playerName(player))}<span class="text-gray-500"> (${escapeHtml((player.position || 'UNK').toUpperCase())} - ${escapeHtml(player.nfl_team || player.team || 'FA')})</span></span><span class="whitespace-nowrap font-medium">$${Number(pick.cost || 0)}</span></li>`).join('')
+        : '<li class="py-1 text-gray-500">No players drafted.</li>';
+      row.innerHTML = `<div class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></div><div class="text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</div><ul class="text-sm mt-2">${rosterHtml}</ul>`;
       managerRosterOverview.appendChild(row);
     });
   if (!cache.teams.length) managerRosterOverview.textContent = 'No managers have been added.';
+}
+
+function allocateRosterSlots(roster){
+  roster.forEach(entry => { entry.slot = 'BENCH'; });
+  const byPosition = position => roster.filter(entry => (entry.player.position || '').toUpperCase() === position && entry.slot === 'BENCH');
+  const assign = (position, slot, count) => byPosition(position).slice(0, count).forEach(entry => { entry.slot = slot; });
+  assign('QB', 'QB', 1);
+  assign('DEF', 'DEF', 1);
+  assign('K', 'K', 1);
+  assign('RB', 'RB', 2);
+  assign('WR', 'WRTE', 3);
+  assign('TE', 'WRTE', 3 - roster.filter(entry => entry.slot === 'WRTE').length);
+  ['RB', 'WR', 'TE'].some(position => {
+    const candidate = byPosition(position)[0];
+    if (!candidate) return false;
+    candidate.slot = 'FLEX';
+    return true;
+  });
 }
 
 function renderLog(){
