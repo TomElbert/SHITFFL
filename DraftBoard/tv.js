@@ -12,7 +12,8 @@ const els = {
   recapRound: document.getElementById('recap-round'),
   recap: document.getElementById('recap-list'),
   liveAuction: document.getElementById('live-auction'),
-  liveWinner: document.getElementById('live-winner')
+  liveWinner: document.getElementById('live-winner'),
+  rules: document.getElementById('draft-rules')
 };
 
 let state = {teams:[], players:{}, picks:[], draftState:null};
@@ -89,11 +90,13 @@ function render(){
   const winner = findPlayer(state.draftState.last_winner_player_id);
   const winnerTeam = state.teams.find(team => Number(team.id) === Number(state.draftState.last_winner_team_id));
   const roundComplete = Boolean(state.draftState.round_complete);
+  const draftStarted = Boolean(state.draftState.draft_started);
 
-  els.liveAuction.classList.toggle('hidden', roundComplete);
-  els.liveWinner.classList.toggle('hidden', roundComplete);
-  els.round.textContent = roundComplete ? `Round ${state.draftState.round_number} Complete` : state.draftState.draft_started ? `Round ${state.draftState.round_number}` : 'Draft not started';
-  els.nominator.textContent = state.draftState.draft_started && currentTeam ? currentTeam.manager_name || `Team ${currentTeam.id}` : 'Waiting';
+  els.rules.classList.toggle('hidden', draftStarted);
+  els.liveAuction.classList.toggle('hidden', roundComplete || !draftStarted);
+  els.liveWinner.classList.toggle('hidden', roundComplete || !draftStarted);
+  els.round.textContent = roundComplete ? `Round ${state.draftState.round_number} Complete` : draftStarted ? `Round ${state.draftState.round_number}` : 'Draft not started';
+  els.nominator.textContent = draftStarted && currentTeam ? currentTeam.manager_name || `Team ${currentTeam.id}` : 'Waiting';
   els.nominated.textContent = state.draftState.nominated_player_id ? playerName(nominated, state.draftState.nominated_player_id) : 'Waiting for nomination';
   els.nominatedMeta.textContent = nominated.position ? `${nominated.position} — ${nominated.nfl_team || 'FA'}` : '';
   els.winner.textContent = state.draftState.last_winner_player_id ? playerName(winner, state.draftState.last_winner_player_id) : 'No completed auction yet';
