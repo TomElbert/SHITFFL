@@ -13,7 +13,10 @@ const els = {
   recap: document.getElementById('recap-list'),
   liveAuction: document.getElementById('live-auction'),
   liveWinner: document.getElementById('live-winner'),
-  rules: document.getElementById('draft-rules')
+  rules: document.getElementById('draft-rules'),
+  draftOrder: document.getElementById('draft-order'),
+  draftOrderList: document.getElementById('draft-order-list'),
+  recapSection: document.getElementById('round-recap')
 };
 
 let state = {teams:[], players:{}, picks:[], draftState:null};
@@ -93,6 +96,8 @@ function render(){
   const draftStarted = Boolean(state.draftState.draft_started);
 
   els.rules.classList.toggle('hidden', draftStarted);
+  els.draftOrder.classList.toggle('hidden', draftStarted);
+  els.recapSection.classList.toggle('hidden', !draftStarted);
   els.liveAuction.classList.toggle('hidden', roundComplete || !draftStarted);
   els.liveWinner.classList.toggle('hidden', roundComplete || !draftStarted);
   els.round.textContent = roundComplete ? `Round ${state.draftState.round_number} Complete` : draftStarted ? `Round ${state.draftState.round_number}` : 'Draft not started';
@@ -101,6 +106,10 @@ function render(){
   els.nominatedMeta.textContent = nominated.position ? `${nominated.position} — ${nominated.nfl_team || 'FA'}` : '';
   els.winner.textContent = state.draftState.last_winner_player_id ? playerName(winner, state.draftState.last_winner_player_id) : 'No completed auction yet';
   els.winnerMeta.textContent = state.draftState.last_winner_player_id ? `${winnerTeam?.manager_name || 'Unknown team'} — $${state.draftState.last_winning_cost}` : '';
+
+  els.draftOrderList.innerHTML = teams.length
+    ? teams.map((team, index) => `<li class="flex items-center gap-3 rounded bg-blue-800 px-4 py-3"><span class="font-bold text-blue-200">${team.turn_order || index + 1}.</span><span>${escapeHtml(team.manager_name || `Team ${team.id}`)}</span></li>`).join('')
+    : '<li class="text-blue-200">Draft order has not been set.</li>';
 
   const recapRound = state.picks.reduce((highest, pick) => Math.max(highest, Number(pick.round_number) || 1), 0);
   const recapPicks = state.picks.filter(pick => (Number(pick.round_number) || 1) === recapRound).sort((a,b) => Number(b.id) - Number(a.id));

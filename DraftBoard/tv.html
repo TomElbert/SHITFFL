@@ -6,7 +6,7 @@
   <title>Smokin' Hot Info Techs - Live Draft</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="tv.js?v=5" defer></script>
+  <script src="tv.js?v=7" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6 md:p-10">
@@ -34,6 +34,11 @@
       <p class="mt-4 border-l-4 border-red-400 pl-4 text-xl font-semibold text-red-200">Failure to keep enough budget means you buy the auctioneer a drink.</p>
     </section>
 
+    <section id="draft-order" class="mt-6 bg-blue-900 rounded-lg p-6">
+      <h2 class="text-3xl font-bold">Draft Order</h2>
+      <ol id="draft-order-list" class="mt-4 grid gap-2 text-xl sm:grid-cols-2 lg:grid-cols-3"></ol>
+    </section>
+
     <section id="live-auction" class="mt-8 grid gap-6 md:grid-cols-3">
       <div class="bg-gray-800 rounded-lg p-6 md:col-span-1">
         <p class="text-sm uppercase text-gray-400">Nominating</p>
@@ -54,7 +59,7 @@
       </div>
     </section>
 
-    <section class="mt-8 bg-gray-800 rounded-lg p-6">
+    <section id="round-recap" class="mt-8 bg-gray-800 rounded-lg p-6">
       <div class="flex flex-wrap justify-between items-baseline gap-3">
         <h2 class="text-2xl font-semibold">Round Recap</h2>
         <p id="recap-round" class="text-gray-400"></p>
