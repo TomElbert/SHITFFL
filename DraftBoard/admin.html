@@ -6,7 +6,7 @@
   <title>DraftBoard Admin</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=22" defer></script>
+  <script src="admin.js?v=26" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 p-6">
@@ -42,6 +42,10 @@
           <h2 class="font-semibold">Draft Player</h2>
           <div class="mt-3">
             <input id="player-search" placeholder="Search available players" class="w-full p-2 border rounded" />
+            <label class="inline-flex items-center gap-2 mt-2 text-sm text-gray-600">
+              <input id="show-drafted-players" type="checkbox" class="h-4 w-4" />
+              Show drafted players
+            </label>
             <div id="player-results" class="mt-2 max-h-40 overflow-auto"></div>
           </div>
           <div class="mt-3 grid grid-cols-2 gap-2">

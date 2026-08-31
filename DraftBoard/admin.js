@@ -15,6 +15,7 @@ const authMsg = document.getElementById('auth-msg');
 const authEl = document.getElementById('auth');
 const appEl = document.getElementById('app');
 const playerSearch = document.getElementById('player-search');
+const showDraftedPlayers = document.getElementById('show-drafted-players');
 const playerResults = document.getElementById('player-results');
 const bidAmount = document.getElementById('bid-amount');
 const teamSelect = document.getElementById('team-select');
@@ -289,25 +290,33 @@ function renderTeams(){
   });
 }
 
-playerSearch.addEventListener('input', ()=>{
-  const q = playerSearch.value.trim().toLowerCase();
+playerSearch.addEventListener('input', renderPlayerSearch);
+showDraftedPlayers.addEventListener('change', renderPlayerSearch);
+
+function renderPlayerSearch(){
+  const q = normalizeSearchText(playerSearch.value);
   const available = cache.players
-    .filter(p=>!p.is_drafted && playerName(p).toLowerCase().includes(q))
+    .filter(p=>(showDraftedPlayers.checked || !p.is_drafted) && normalizeSearchText(playerName(p)).includes(q))
     .sort((a, b) => {
-      const aName = playerName(a).toLowerCase();
-      const bName = playerName(b).toLowerCase();
-      return Number(!aName.startsWith(q)) - Number(!bName.startsWith(q)) || aName.localeCompare(bName);
+      const aIsFreeAgent = (a.nfl_team || a.team || 'FA').toUpperCase() === 'FA';
+      const bIsFreeAgent = (b.nfl_team || b.team || 'FA').toUpperCase() === 'FA';
+      const aName = normalizeSearchText(playerName(a));
+      const bName = normalizeSearchText(playerName(b));
+      return Number(aIsFreeAgent) - Number(bIsFreeAgent)
+        || Number(!aName.startsWith(q)) - Number(!bName.startsWith(q))
+        || aName.localeCompare(bName);
     });
   playerResults.innerHTML='';
   available.slice(0,25).forEach(p=>{
     const div = document.createElement('div');
-    div.className='p-2 border-b cursor-pointer flex justify-between items-center';
+    const isDrafted = Boolean(p.is_drafted);
+    div.className=`p-2 border-b flex justify-between items-center ${isDrafted ? 'cursor-not-allowed text-red-600 line-through' : 'cursor-pointer'}`;
     const name = playerName(p);
     div.innerHTML = `<div><div class="font-medium">${escapeHtml(name)}</div><div class="text-xs text-gray-500">${p.position||''} ${p.depth_chart_order?('<span class="text-yellow-600">★'+p.depth_chart_order+'</span>'):''} ${p.injury_status?'<span class="text-red-600">INJ</span>':''}</div></div><div class="text-sm text-gray-600">${p.nfl_team||p.team||''}</div>`;
-    div.addEventListener('click', ()=> selectPlayer(p));
+    if (!isDrafted) div.addEventListener('click', ()=> selectPlayer(p));
     playerResults.appendChild(div);
   });
-});
+}
 
 async function selectPlayer(p){
   if (cache.draftState?.round_complete) {
@@ -457,7 +466,7 @@ function renderManagerRosterOverview(){
       const rosterHtml = roster.length
         ? roster.map(({pick, player, slot}) => `<li class="flex justify-between gap-3 py-1 border-t"><span><span class="font-semibold text-gray-500">${escapeHtml(slot)}</span> ${escapeHtml(playerName(player))}<span class="text-gray-500"> (${escapeHtml((player.position || 'UNK').toUpperCase())} - ${escapeHtml(player.nfl_team || player.team || 'FA')})</span></span><span class="whitespace-nowrap font-medium">$${Number(pick.cost || 0)}</span></li>`).join('')
         : '<li class="py-1 text-gray-500">No players drafted.</li>';
-      row.innerHTML = `<summary class="cursor-pointer"><span class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></span><span class="block text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</span></summary><ul class="text-sm mt-2">${rosterHtml}</ul>`;
+      row.innerHTML = `<summary class="cursor-pointer"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="inline-block ml-4 font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span><span class="block text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</span></summary><ul class="text-sm mt-2">${rosterHtml}</ul>`;
       managerRosterOverview.appendChild(row);
     });
   if (!cache.teams.length) managerRosterOverview.textContent = 'No managers have been added.';
@@ -600,6 +609,14 @@ function getRemainingRequiredSlots(status){
 }
 
 function escapeHtml(s){ if (!s) return ''; return String(s).replace(/[&"'<>]/g, (c)=>({'&':'&amp;','"':'&quot;','\'':'&#39;','<':'&lt;','>':'&gt;'}[c])); }
+
+function normalizeSearchText(value){
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
+}
 
 function playerName(player){
   return player.name || player.display_name || player.full_name || player.id || '';
