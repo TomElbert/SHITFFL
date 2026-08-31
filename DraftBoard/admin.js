@@ -452,12 +452,12 @@ function renderManagerRosterOverview(){
         });
       allocateRosterSlots(roster);
       roster.sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99) || playerName(a.player).localeCompare(playerName(b.player)));
-      const row = document.createElement('div');
+      const row = document.createElement('details');
       row.className = 'border-b pb-3 last:border-b-0 last:pb-0';
       const rosterHtml = roster.length
         ? roster.map(({pick, player, slot}) => `<li class="flex justify-between gap-3 py-1 border-t"><span><span class="font-semibold text-gray-500">${escapeHtml(slot)}</span> ${escapeHtml(playerName(player))}<span class="text-gray-500"> (${escapeHtml((player.position || 'UNK').toUpperCase())} - ${escapeHtml(player.nfl_team || player.team || 'FA')})</span></span><span class="whitespace-nowrap font-medium">$${Number(pick.cost || 0)}</span></li>`).join('')
         : '<li class="py-1 text-gray-500">No players drafted.</li>';
-      row.innerHTML = `<div class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></div><div class="text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</div><ul class="text-sm mt-2">${rosterHtml}</ul>`;
+      row.innerHTML = `<summary class="cursor-pointer"><span class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></span><span class="block text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</span></summary><ul class="text-sm mt-2">${rosterHtml}</ul>`;
       managerRosterOverview.appendChild(row);
     });
   if (!cache.teams.length) managerRosterOverview.textContent = 'No managers have been added.';
