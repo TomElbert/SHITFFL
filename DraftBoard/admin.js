@@ -431,11 +431,13 @@ function formatPositionCounts(counts){
 function getTeamDraftSummary(teamId){
   const picks = cache.picks.filter(pick => Number(pick.team_id) === Number(teamId));
   const spent = picks.reduce((total, pick) => total + Number(pick.cost || 0), 0);
+  const requiredStatus = computeRequiredStatus(picks.map(pick => findPlayer(pick.player_id)));
   return {
     picks,
     spent,
     remaining: STARTING_BUDGET - spent,
-    counts: getPositionCounts(picks)
+    counts: getPositionCounts(picks),
+    requiredStatus
   };
 }
 
@@ -466,13 +468,34 @@ function renderManagerRosterOverview(){
       roster.sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99) || playerName(a.player).localeCompare(playerName(b.player)));
       const row = document.createElement('details');
       row.className = 'border-b pb-3 last:border-b-0 last:pb-0';
+      const canComplete = summary.picks.length >= 12 && Object.values(summary.requiredStatus).every(slot => slot.filled);
+      const requiredHtml = Object.entries(summary.requiredStatus).map(([slot, status]) => `<span class="inline-block mr-2 ${status.filled ? 'text-green-600 font-semibold' : 'text-gray-600'}">${slot} ${status.haveCount}/${status.needCount + status.haveCount}</span>`).join('');
       const rosterHtml = roster.length
         ? roster.map(({pick, player, slot}) => `<li class="flex justify-between gap-3 py-1 border-t"><span><span class="font-semibold text-gray-500">${escapeHtml(slot)}</span> ${escapeHtml(playerName(player))}<span class="text-gray-500"> (${escapeHtml((player.position || 'UNK').toUpperCase())} - ${escapeHtml(player.nfl_team || player.team || 'FA')})</span></span><span class="whitespace-nowrap font-medium">$${Number(pick.cost || 0)}</span></li>`).join('')
         : '<li class="py-1 text-gray-500">No players drafted.</li>';
-      row.innerHTML = `<summary class="cursor-pointer"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="inline-block ml-4 font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span><span class="block text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</span></summary><ul class="text-sm mt-2">${rosterHtml}</ul>`;
+      row.innerHTML = `<summary class="cursor-pointer"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="inline-block ml-4 font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span><span class="block text-sm mt-1">${requiredHtml}</span></summary><div class="text-sm text-gray-600 mt-2">${escapeHtml(formatPositionCounts(summary.counts))}</div><div class="mt-2"><button class="complete-team ${team.completed ? 'bg-yellow-600' : 'bg-green-600'} text-white px-2 py-1 rounded text-sm" ${!team.completed && !canComplete ? 'disabled' : ''}>${team.completed ? 'Reopen Team' : 'Mark Complete'}</button></div><ul class="text-sm mt-2">${rosterHtml}</ul>`;
+      row.querySelector('.complete-team').addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setTeamCompleted(team, !team.completed, canComplete);
+      });
       managerRosterOverview.appendChild(row);
     });
   if (!cache.teams.length) managerRosterOverview.textContent = 'No managers have been added.';
+}
+
+async function setTeamCompleted(team, completed, canComplete){
+  if (completed && !canComplete) {
+    draftControlMsg.textContent = 'A team needs at least 12 players and every required slot filled before completion.';
+    return;
+  }
+  const {error} = await supabaseClient.from('teams').update({completed}).eq('id', team.id);
+  if (error) {
+    draftControlMsg.textContent = error.message;
+    return;
+  }
+  draftControlMsg.textContent = completed ? 'Team marked complete and removed from the nomination rotation.' : 'Team reopened.';
+  await loadAll();
 }
 
 function allocateRosterSlots(roster){
