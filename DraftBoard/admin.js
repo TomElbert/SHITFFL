@@ -291,7 +291,10 @@ function renderTeams(){
 }
 
 playerSearch.addEventListener('input', renderPlayerSearch);
-showDraftedPlayers.addEventListener('change', renderPlayerSearch);
+showDraftedPlayers.addEventListener('change', ()=>{
+  if (playerSearch.value.trim()) renderPlayerSearch();
+  else playerResults.innerHTML = '';
+});
 
 function renderPlayerSearch(){
   const q = normalizeSearchText(playerSearch.value);
