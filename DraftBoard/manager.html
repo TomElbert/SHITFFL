@@ -6,7 +6,7 @@
   <title>Manager Team Setup</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="manager.js?v=3" defer></script>
+  <script src="manager.js?v=4" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 text-gray-900 p-6">
@@ -32,6 +32,9 @@
         <div class="mt-3 flex gap-2">
           <input id="team-name" placeholder="Team name or manager name" class="flex-1 p-2 border rounded" />
           <button id="add-team" class="bg-green-600 text-white px-3 py-2 rounded">Add Team</button>
+        </div>
+        <div class="mt-2">
+          <button id="import-espn-league" class="bg-indigo-600 text-white px-3 py-2 rounded">Import From ESPN League</button>
         </div>
         <div id="teams-list" class="mt-4 space-y-2"></div>
         <div class="mt-4 flex flex-wrap gap-2">

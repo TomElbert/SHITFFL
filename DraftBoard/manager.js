@@ -10,6 +10,7 @@ const signInBtn = document.getElementById('signin');
 const authMsg = document.getElementById('auth-msg');
 const teamNameEl = document.getElementById('team-name');
 const addTeamBtn = document.getElementById('add-team');
+const importEspnLeagueBtn = document.getElementById('import-espn-league');
 const saveOrderBtn = document.getElementById('save-order');
 const teamsListEl = document.getElementById('teams-list');
 const messageEl = document.getElementById('message');
@@ -23,6 +24,7 @@ signInBtn.addEventListener('click', signIn);
   if (event.key === 'Enter') signIn();
 }));
 addTeamBtn.addEventListener('click', addTeam);
+importEspnLeagueBtn.addEventListener('click', importEspnLeague);
 teamNameEl.addEventListener('keydown', event => {
   if (event.key === 'Enter') addTeam();
 });
@@ -128,6 +130,41 @@ async function addTeam() {
   await loadTeams();
 }
 
+async function importEspnLeague() {
+  const leagueId = window.prompt('Enter the ESPN league ID for a public league:');
+  if (!leagueId || !/^\d+$/.test(leagueId.trim())) return;
+
+  importEspnLeagueBtn.disabled = true;
+  showMessage('Loading ESPN league members...');
+  try {
+    const url = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/2026/segments/0/leagues/${leagueId.trim()}?view=mTeam`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`ESPN returned ${response.status}. Check the league ID and confirm the league is public.`);
+    const league = await response.json();
+    const memberNames = [...new Set((league.members || [])
+      .map(member => String(member.displayName || `${member.firstName || ''} ${member.lastName || ''}`).trim())
+      .filter(Boolean))];
+    if (!memberNames.length) throw new Error('No manager names were returned. Private ESPN leagues cannot be imported from this page.');
+
+    const existingNames = new Set(teams.map(team => normalizeManagerName(team.manager_name)));
+    const newNames = memberNames.filter(name => !existingNames.has(normalizeManagerName(name)));
+    if (!newNames.length) {
+      showMessage('All ESPN manager names are already in DraftBoard.');
+      return;
+    }
+
+    let nextOrder = teams.reduce((highest, team) => Math.max(highest, Number(team.turn_order) || 0), 0) + 1;
+    const {error} = await supabaseClient.from('teams').insert(newNames.map(manager_name => ({manager_name, turn_order:nextOrder++})));
+    if (error) throw error;
+    showMessage(`Imported ${newNames.length} ESPN manager${newNames.length === 1 ? '' : 's'}. Save the order when ready.`);
+    await loadTeams();
+  } catch (error) {
+    showMessage(error.message || 'Unable to import ESPN league members.', true);
+  } finally {
+    importEspnLeagueBtn.disabled = false;
+  }
+}
+
 async function removeTeam(team) {
   if (!window.confirm(`Remove ${team.manager_name || ('Team '+team.id)}? This will fail if the team already has draft picks.`)) return;
   const {error} = await supabaseClient.from('teams').delete().eq('id', team.id);
@@ -159,6 +196,10 @@ async function saveOrder() {
 function showMessage(message, isError = false) {
   messageEl.textContent = message;
   messageEl.className = `text-sm mt-3 ${isError ? 'text-red-500' : 'text-green-600'}`;
+}
+
+function normalizeManagerName(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 function escapeHtml(value) {
