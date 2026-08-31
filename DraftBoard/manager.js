@@ -84,11 +84,21 @@ function renderTeams() {
     const teamPicks = picks.filter(pick => Number(pick.team_id) === Number(team.id));
     const status = computeRequiredStatus(teamPicks.map(pick => players[String(pick.player_id)]));
     const canComplete = teamPicks.length >= 12 && Object.values(status).every(slot => slot.filled);
-    row.innerHTML = `<input data-team-id="${team.id}" type="number" min="1" class="team-order w-20 p-2 border rounded" value="${team.turn_order || index + 1}" /><span class="flex-1">${escapeHtml(team.manager_name || ('Team '+team.id))} <span class="text-xs text-gray-500">${teamPicks.length}/14 players${team.completed ? ' | Completed' : ''}</span></span><button data-team-id="${team.id}" class="complete-team ${team.completed ? 'bg-yellow-600' : 'bg-green-600'} text-white px-2 py-1 rounded" ${!team.completed && !canComplete ? 'disabled' : ''}>${team.completed ? 'Reopen' : 'Mark Complete'}</button><button data-team-id="${team.id}" class="remove-team bg-red-600 text-white px-2 py-1 rounded">Remove</button>`;
+    row.innerHTML = `<span class="w-8 text-center font-semibold text-gray-500">${index + 1}</span><div class="flex flex-col gap-1"><button class="move-team px-2 leading-none text-gray-700 disabled:text-gray-300" data-direction="up" title="Move ${escapeHtml(team.manager_name || ('Team '+team.id))} up" ${index === 0 ? 'disabled' : ''}>&uarr;</button><button class="move-team px-2 leading-none text-gray-700 disabled:text-gray-300" data-direction="down" title="Move ${escapeHtml(team.manager_name || ('Team '+team.id))} down" ${index === teams.length - 1 ? 'disabled' : ''}>&darr;</button></div><span class="flex-1">${escapeHtml(team.manager_name || ('Team '+team.id))} <span class="text-xs text-gray-500">${teamPicks.length}/14 players${team.completed ? ' | Completed' : ''}</span></span><button data-team-id="${team.id}" class="complete-team ${team.completed ? 'bg-yellow-600' : 'bg-green-600'} text-white px-2 py-1 rounded" ${!team.completed && !canComplete ? 'disabled' : ''}>${team.completed ? 'Reopen' : 'Mark Complete'}</button><button data-team-id="${team.id}" class="remove-team bg-red-600 text-white px-2 py-1 rounded">Remove</button>`;
+    row.querySelectorAll('.move-team').forEach(button => button.addEventListener('click', () => moveTeam(index, button.dataset.direction)));
     row.querySelector('.complete-team').addEventListener('click', () => setCompleted(team, !team.completed, canComplete));
     row.querySelector('.remove-team').addEventListener('click', () => removeTeam(team));
     teamsListEl.appendChild(row);
   });
+}
+
+function moveTeam(index, direction) {
+  const newIndex = direction === 'up' ? index - 1 : index + 1;
+  if (newIndex < 0 || newIndex >= teams.length) return;
+  [teams[index], teams[newIndex]] = [teams[newIndex], teams[index]];
+  teams.forEach((team, teamIndex) => { team.turn_order = teamIndex + 1; });
+  renderTeams();
+  showMessage('Order updated. Save Order to apply it to the draft.');
 }
 
 async function setCompleted(team, completed, canComplete) {
@@ -140,12 +150,7 @@ async function removeTeam(team) {
 }
 
 async function saveOrder() {
-  const entries = [...document.querySelectorAll('.team-order')].map(input => ({id:Number(input.dataset.teamId), order:Number(input.value)}));
-  const orders = entries.map(entry => entry.order);
-  if (entries.some(entry => !Number.isInteger(entry.order) || entry.order < 1) || new Set(orders).size !== orders.length) {
-    showMessage('Each team needs a unique positive order number.', true);
-    return;
-  }
+  const entries = teams.map((team, index) => ({id:team.id, order:index + 1}));
   const results = await Promise.all(entries.map(entry => supabaseClient.from('teams').update({turn_order:entry.order}).eq('id',entry.id)));
   const error = results.find(result => result.error)?.error;
   if (error) {
