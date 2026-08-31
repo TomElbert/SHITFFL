@@ -29,6 +29,8 @@ const nextRoundBtn = document.getElementById('next-round');
 const resetDraftBtn = document.getElementById('reset-draft');
 const draftControlMsg = document.getElementById('draft-control-msg');
 const syncMsg = document.getElementById('sync-msg');
+const draftResultSummary = document.getElementById('draft-result-summary');
+const managerRosterOverview = document.getElementById('manager-roster-overview');
 
 let cache = {players:[], teams:[], picks:[], draftState:null};
 let selectedPlayer = null;
@@ -80,6 +82,7 @@ async function loadAll(){
     renderTeams();
     renderTurnControls();
     renderLog();
+    renderManagerRosterOverview();
   } catch (error) {
     console.error('Failed to load draft data:', error);
     authMsg.textContent = 'Error loading draft data: ' + (error.message || String(error));
@@ -392,9 +395,59 @@ draftBtn.addEventListener('click', async ()=>{
 
   await advanceTurn();
   draftMsg.textContent = 'Draft successful';
+  renderDraftResultSummary(teamId);
   // reset selection
   selectedPlayer = null; playerSearch.value=''; bidAmount.value=''; playerResults.innerHTML='';
 });
+
+function getPositionCounts(picks){
+  const counts = {QB:0, RB:0, WR:0, TE:0, DEF:0, K:0};
+  picks.forEach(pick => {
+    const position = (findPlayer(pick.player_id).position || '').toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(counts, position)) counts[position]++;
+  });
+  return counts;
+}
+
+function formatPositionCounts(counts){
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([position, count]) => `${position}: ${count}`)
+    .join(' | ') || 'No players';
+}
+
+function getTeamDraftSummary(teamId){
+  const picks = cache.picks.filter(pick => Number(pick.team_id) === Number(teamId));
+  const spent = picks.reduce((total, pick) => total + Number(pick.cost || 0), 0);
+  return {
+    picks,
+    spent,
+    remaining: STARTING_BUDGET - spent,
+    counts: getPositionCounts(picks)
+  };
+}
+
+function renderDraftResultSummary(teamId){
+  const team = cache.teams.find(candidate => Number(candidate.id) === Number(teamId));
+  if (!team) return;
+  const summary = getTeamDraftSummary(teamId);
+  draftResultSummary.textContent = `${team.manager_name || ('Team ' + team.id)} now has ${summary.picks.length} players: ${formatPositionCounts(summary.counts)}. $${summary.remaining} remaining.`;
+}
+
+function renderManagerRosterOverview(){
+  managerRosterOverview.innerHTML = '';
+  cache.teams
+    .slice()
+    .sort((a, b) => Number(a.turn_order || Number.MAX_SAFE_INTEGER) - Number(b.turn_order || Number.MAX_SAFE_INTEGER) || Number(a.id) - Number(b.id))
+    .forEach(team => {
+      const summary = getTeamDraftSummary(team.id);
+      const row = document.createElement('div');
+      row.className = 'border-b pb-3 last:border-b-0 last:pb-0';
+      row.innerHTML = `<div class="flex flex-wrap justify-between gap-x-4 gap-y-1"><span class="font-medium">${escapeHtml(team.manager_name || ('Team ' + team.id))}</span><span class="font-semibold">${summary.picks.length}/14 players | $${summary.remaining} left</span></div><div class="text-sm text-gray-600 mt-1">${escapeHtml(formatPositionCounts(summary.counts))}</div>`;
+      managerRosterOverview.appendChild(row);
+    });
+  if (!cache.teams.length) managerRosterOverview.textContent = 'No managers have been added.';
+}
 
 function renderLog(){
   logList.innerHTML = '<div class="grid grid-cols-5 gap-2 px-2 pb-2 text-xs font-semibold uppercase text-gray-500"><div>Player Name</div><div>Position</div><div>Cost</div><div>Manager</div><div></div></div>';
@@ -525,4 +578,4 @@ function findPlayer(playerId){
 }
 
 // initial load of teams & players for search
-(async ()=>{ try{ const [players,tRes,dRes,sRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*'), supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle() ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false, round_complete:false}; await loadPlayersForPicks(cache.picks); renderTeams(); renderTurnControls(); renderLog(); }catch(e){ console.error(e);} })();
+(async ()=>{ try{ const [players,tRes,dRes,sRes] = await Promise.all([ loadAllPlayers(), supabaseClient.from('teams').select('*'), supabaseClient.from('draft_picks').select('*'), supabaseClient.from('draft_state').select('*').eq('id', 1).maybeSingle() ]); cache.players = players; cache.teams = tRes.data || []; cache.picks = (dRes.data||[]).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at)); cache.draftState = sRes.data || {current_turn_order:1, round_number:1, draft_started:false, round_complete:false}; await loadPlayersForPicks(cache.picks); renderTeams(); renderTurnControls(); renderLog(); renderManagerRosterOverview(); }catch(e){ console.error(e);} })();
