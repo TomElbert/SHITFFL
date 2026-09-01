@@ -185,3 +185,4 @@ CREATE INDEX IF NOT EXISTS idx_draft_picks_team_id ON public.draft_picks(team_id
 CREATE INDEX IF NOT EXISTS idx_draft_picks_player_id ON public.draft_picks(player_id);
 
 -- End of schema
+up

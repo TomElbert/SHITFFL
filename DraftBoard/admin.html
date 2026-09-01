@@ -6,7 +6,7 @@
   <title>Smokin' Hot Info Techs - Draft Control</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=29" defer></script>
+  <script src="admin.js?v=30" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 p-6">
@@ -70,7 +70,10 @@
         </div>
       </div>
       <section class="bg-white p-4 rounded shadow mt-4">
-        <h2 class="font-semibold">Manager Roster and Budget Overview</h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="font-semibold">Manager Roster and Budget Overview</h2>
+          <button id="export-manager-teams" class="bg-blue-600 text-white px-3 py-2 rounded">Export Manager Teams CSV</button>
+        </div>
         <div id="manager-roster-overview" class="mt-3 space-y-3"></div>
       </section>
     </div>

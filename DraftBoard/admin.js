@@ -33,6 +33,7 @@ const draftControlMsg = document.getElementById('draft-control-msg');
 const syncMsg = document.getElementById('sync-msg');
 const draftResultSummary = document.getElementById('draft-result-summary');
 const managerRosterOverview = document.getElementById('manager-roster-overview');
+const exportManagerTeamsBtn = document.getElementById('export-manager-teams');
 
 let cache = {players:[], teams:[], picks:[], draftState:null};
 let selectedPlayer = null;
@@ -64,6 +65,7 @@ startDraftBtn.addEventListener('click', startDraft);
 syncPlayersBtn.addEventListener('click', syncPlayers);
 resetDraftBtn.addEventListener('click', resetDraft);
 nextRoundBtn.addEventListener('click', proceedToNextRound);
+exportManagerTeamsBtn.addEventListener('click', exportManagerTeams);
 
 async function loadAll(){
   try {
@@ -453,6 +455,50 @@ function renderDraftResultSummary(teamId){
   if (!team) return;
   const summary = getTeamDraftSummary(teamId);
   draftResultSummary.textContent = `${team.manager_name || ('Team ' + team.id)} now has ${summary.picks.length} players: ${formatPositionCounts(summary.counts)}. $${summary.remaining} remaining.`;
+}
+
+function exportManagerTeams(){
+  const slotOrder = {QB:1, RB:2, WRTE:3, FLEX:4, DEF:5, K:6, BENCH:7};
+  const rows = [['Manager Team', 'Roster Slot', 'Player Name', 'ESPN Player ID', 'Position', 'NFL Team', 'Auction Cost']];
+
+  cache.teams
+    .slice()
+    .sort((a, b) => String(a.manager_name || '').localeCompare(String(b.manager_name || '')) || Number(a.id) - Number(b.id))
+    .forEach(team => {
+      const roster = getTeamDraftSummary(team.id).picks.map(pick => ({pick, player:findPlayer(pick.player_id)}));
+      allocateRosterSlots(roster);
+      roster
+        .sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99) || playerName(a.player).localeCompare(playerName(b.player)))
+        .forEach(({pick, player, slot}) => rows.push([
+          team.manager_name || ('Team ' + team.id),
+          slot,
+          playerName(player),
+          player.espn_id || '',
+          (player.position || '').toUpperCase(),
+          player.nfl_team || player.team || '',
+          Number(pick.cost || 0)
+        ]));
+    });
+
+  if (rows.length === 1) {
+    draftControlMsg.textContent = 'No drafted players are available to export.';
+    return;
+  }
+
+  const csv = rows.map(row => row.map(csvValue).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'espn-ffl-manager-teams.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  draftControlMsg.textContent = `Exported ${rows.length - 1} drafted players to CSV.`;
+}
+
+function csvValue(value){
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
 
 function renderManagerRosterOverview(){
