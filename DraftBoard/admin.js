@@ -16,6 +16,7 @@ const authEl = document.getElementById('auth');
 const appEl = document.getElementById('app');
 const playerSearch = document.getElementById('player-search');
 const showDraftedPlayers = document.getElementById('show-drafted-players');
+const overrideDraftChecks = document.getElementById('override-draft-checks');
 const playerResults = document.getElementById('player-results');
 const bidAmount = document.getElementById('bid-amount');
 const teamSelect = document.getElementById('team-select');
@@ -134,7 +135,7 @@ function renderTurnControls(){
   startDraftBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
   syncPlayersBtn.classList.toggle('hidden', Boolean(cache.draftState?.draft_started));
   nextRoundBtn.classList.toggle('hidden', !Boolean(cache.draftState?.round_complete));
-  draftBtn.disabled = Boolean(cache.draftState?.round_complete);
+  draftBtn.disabled = Boolean(cache.draftState?.round_complete) && !overrideDraftChecks.checked;
   turnOrderList.innerHTML = '';
   teams.forEach((team, index) => {
     const row = document.createElement('div');
@@ -295,6 +296,10 @@ showDraftedPlayers.addEventListener('change', ()=>{
   if (playerSearch.value.trim()) renderPlayerSearch();
   else playerResults.innerHTML = '';
 });
+overrideDraftChecks.addEventListener('change', ()=>{
+  renderTurnControls();
+  if (playerSearch.value.trim()) renderPlayerSearch();
+});
 
 function renderPlayerSearch(){
   const q = normalizeSearchText(playerSearch.value);
@@ -313,16 +318,17 @@ function renderPlayerSearch(){
   available.slice(0,25).forEach(p=>{
     const div = document.createElement('div');
     const isDrafted = Boolean(p.is_drafted);
-    div.className=`p-2 border-b flex justify-between items-center ${isDrafted ? 'cursor-not-allowed text-red-600 line-through' : 'cursor-pointer'}`;
+    const canSelect = !isDrafted || overrideDraftChecks.checked;
+    div.className=`p-2 border-b flex justify-between items-center ${canSelect ? 'cursor-pointer' : 'cursor-not-allowed text-red-600 line-through'}`;
     const name = playerName(p);
     div.innerHTML = `<div><div class="font-medium">${escapeHtml(name)}</div><div class="text-xs text-gray-500">${p.position||''} ${p.depth_chart_order?('<span class="text-yellow-600">★'+p.depth_chart_order+'</span>'):''} ${p.injury_status?'<span class="text-red-600">INJ</span>':''}</div></div><div class="text-sm text-gray-600">${p.nfl_team||p.team||''}</div>`;
-    if (!isDrafted) div.addEventListener('click', ()=> selectPlayer(p));
+    if (canSelect) div.addEventListener('click', ()=> selectPlayer(p));
     playerResults.appendChild(div);
   });
 }
 
 async function selectPlayer(p){
-  if (cache.draftState?.round_complete) {
+  if (cache.draftState?.round_complete && !overrideDraftChecks.checked) {
     draftMsg.textContent = 'Proceed to the next round before selecting another player.';
     return;
   }
@@ -341,8 +347,9 @@ async function selectPlayer(p){
 // Draft button logic with validations
 draftBtn.addEventListener('click', async ()=>{
   draftMsg.textContent='';
-  if (!cache.draftState?.draft_started) { draftMsg.textContent = 'Start the draft before entering picks.'; return; }
-  if (cache.draftState?.round_complete) { draftMsg.textContent = 'Proceed to the next round before drafting again.'; return; }
+  const isOverrideEnabled = overrideDraftChecks.checked;
+  if (!cache.draftState?.draft_started && !isOverrideEnabled) { draftMsg.textContent = 'Start the draft before entering picks.'; return; }
+  if (cache.draftState?.round_complete && !isOverrideEnabled) { draftMsg.textContent = 'Proceed to the next round before drafting again.'; return; }
   if (!selectedPlayer) { draftMsg.textContent = 'Select a player first'; return; }
   const bid = Number(bidAmount.value);
   if (!Number.isInteger(bid) || bid < 1) {
@@ -355,17 +362,17 @@ draftBtn.addEventListener('click', async ()=>{
 
   // load current picks for team
   const teamPicks = cache.picks.filter(p=>Number(p.team_id) === teamId);
-  if (teamPicks.length >= 14) { draftMsg.textContent = 'Team already at max roster (14)'; return; }
+  if (!isOverrideEnabled && teamPicks.length >= 14) { draftMsg.textContent = 'Team already at max roster (14)'; return; }
 
   const totalSpent = teamPicks.reduce((s,x)=>s+(x.cost||0),0);
-  if (totalSpent + bid > STARTING_BUDGET) {
+  if (!isOverrideEnabled && totalSpent + bid > STARTING_BUDGET) {
     draftMsg.textContent = `Bid exceeds the team's remaining budget of $${STARTING_BUDGET - totalSpent}.`;
     return;
   }
 
   const remainingRosterSpotsAfterPick = Math.max(0, 12 - (teamPicks.length + 1));
   const budgetAfterBid = STARTING_BUDGET - totalSpent - bid;
-  if (budgetAfterBid < remainingRosterSpotsAfterPick) {
+  if (!isOverrideEnabled && budgetAfterBid < remainingRosterSpotsAfterPick) {
     draftMsg.textContent = `Bid too high. You must keep at least $${remainingRosterSpotsAfterPick} for the remaining players needed to reach 12.`;
     return;
   }
@@ -380,13 +387,13 @@ draftBtn.addEventListener('click', async ()=>{
   const picksUntilMinimumRoster = Math.max(0, 12 - proposedRosterCount);
   const minimumDollarsToReserve = Math.max(remainingRequiredSlots, picksUntilMinimumRoster);
 
-  if (remainingRequiredSlots > picksUntilMinimumRoster) {
+  if (!isOverrideEnabled && remainingRequiredSlots > picksUntilMinimumRoster) {
     draftMsg.textContent = `This pick would make it impossible to complete the minimum team by pick 12. Remaining required slots: ${remainingRequiredSlots}.`;
     return;
   }
 
   const maxAllowable = STARTING_BUDGET - totalSpent - minimumDollarsToReserve;
-  if (bid > maxAllowable) {
+  if (!isOverrideEnabled && bid > maxAllowable) {
     draftMsg.textContent = `Bid too high. Max allowable: $${Math.max(0, maxAllowable)}. You must reserve $${minimumDollarsToReserve} for the remaining roster.`;
     return;
   }
